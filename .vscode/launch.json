@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Chat Service",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/services/chat-service/src/server.ts",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3001"
+      },
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "console": "integratedTerminal",
+      "restart": true,
+      "protocol": "inspector",
+      "outFiles": ["${workspaceFolder}/backend/services/chat-service/dist/**/*.js"]
+    },
+    {
+      "name": "Debug Translation Service",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/services/translation-service/src/server.py",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend/services/translation-service"
+      },
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/backend/services/translation-service"
+    },
+    {
+      "name": "Debug Frontend",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug All Services",
+      "configurations": [
+        "Debug Chat Service",
+        "Debug Translation Service",
+        "Debug Frontend"
+      ]
+    }
+  ]
+}

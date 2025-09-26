@@ -1,0 +1,52 @@
+{
+  "folders": [
+    {
+      "name": "Root",
+      "path": "."
+    },
+    {
+      "name": "Frontend",
+      "path": "./frontend"
+    },
+    {
+      "name": "Chat Service",
+      "path": "./backend/services/chat-service"
+    },
+    {
+      "name": "Translation Service",
+      "path": "./backend/services/translation-service"
+    },
+    {
+      "name": "STT Service",
+      "path": "./backend/services/stt-service"
+    },
+    {
+      "name": "TTS Service",
+      "path": "./backend/services/tts-service"
+    },
+    {
+      "name": "Shared",
+      "path": "./backend/shared"
+    },
+    {
+      "name": "Deployment",
+      "path": "./deployment"
+    }
+  ],
+  "settings": {
+    "typescript.preferences.useAliasesForRenames": false,
+    "editor.formatOnSave": true
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.vscode-typescript-next",
+      "bradlc.vscode-tailwindcss",
+      "ms-python.python",
+      "ms-python.black-formatter",
+      "ms-vscode.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "ms-vscode.vscode-docker",
+      "humao.rest-client"
+    ]
+  }
+}
