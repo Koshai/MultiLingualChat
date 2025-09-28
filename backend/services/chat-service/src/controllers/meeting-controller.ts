@@ -74,11 +74,13 @@ export class MeetingController {
         ...meetingData,
         isPublic: meetingData.isPublic ?? true,
         maxParticipants: meetingData.maxParticipants ?? 10,
-        createdBy: userId
+        language: meetingData.language ?? 'en',
+        createdBy: userId,
+        status: 'scheduled'
       });
 
       // Add creator as host participant
-      await this.db.addParticipant(meeting.id, userId, 'host');
+      await this.db.addMeetingParticipant(meeting.id, userId, 'host');
 
       res.status(201).json({ success: true, data: meeting });
     } catch (error) {
@@ -199,7 +201,7 @@ export class MeetingController {
       const limit = parseInt(req.query.limit as string) || 50;
       const offset = parseInt(req.query.offset as string) || 0;
 
-      const transcriptions = await this.db.getTranscriptionsByMeeting(meetingId, limit, offset);
+      const transcriptions = await this.db.getMeetingTranscriptions(meetingId, limit);
       res.json({ success: true, data: transcriptions });
     } catch (error) {
       console.error('Error fetching transcriptions:', error);
@@ -215,7 +217,7 @@ export class MeetingController {
       const userId = (req as any).user.userId;
 
       // Store offer in Redis for real-time delivery
-      await this.redis.storeSignalingData(meetingId, userId, targetUserId, 'offer', offer);
+      await this.redis.storeSignalingData(meetingId, userId, targetUserId, { type: 'offer', data: offer });
 
       res.json({ success: true, message: 'Offer stored' });
     } catch (error) {
@@ -231,7 +233,7 @@ export class MeetingController {
       const userId = (req as any).user.userId;
 
       // Store answer in Redis for real-time delivery
-      await this.redis.storeSignalingData(meetingId, userId, targetUserId, 'answer', answer);
+      await this.redis.storeSignalingData(meetingId, userId, targetUserId, { type: 'answer', data: answer });
 
       res.json({ success: true, message: 'Answer stored' });
     } catch (error) {
@@ -247,7 +249,7 @@ export class MeetingController {
       const userId = (req as any).user.userId;
 
       // Store ICE candidate in Redis for real-time delivery
-      await this.redis.storeSignalingData(meetingId, userId, targetUserId, 'ice-candidate', candidate);
+      await this.redis.storeSignalingData(meetingId, userId, targetUserId, { type: 'ice-candidate', data: candidate });
 
       res.json({ success: true, message: 'ICE candidate stored' });
     } catch (error) {

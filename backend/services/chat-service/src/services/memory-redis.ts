@@ -193,4 +193,47 @@ export class MemoryRedisService {
     const filtered = rooms.filter((id: string) => id !== roomId);
     await this.set(key, filtered, 3600);
   }
+
+  // WebRTC signaling data storage
+  async storeSignalingData(meetingId: string, fromUserId: string, toUserId: string, data: any): Promise<void> {
+    const key = `signaling:${meetingId}:${fromUserId}:${toUserId}:${Date.now()}`;
+    await this.set(key, data, 300); // 5 minutes TTL
+  }
+
+  async getSignalingData(meetingId: string, toUserId: string): Promise<any[]> {
+    const prefix = `signaling:${meetingId}:`;
+    const signalingData: any[] = [];
+
+    for (const [key, item] of this.cache) {
+      if (key.startsWith(prefix) && key.includes(`:${toUserId}:`)) {
+        // Check if not expired
+        if (!item.expiry || Date.now() <= item.expiry) {
+          signalingData.push(item.value);
+        }
+      }
+    }
+
+    return signalingData;
+  }
+
+  // Meeting management
+  async addUserToMeeting(meetingId: string, userId: string): Promise<void> {
+    const key = `meeting_users:${meetingId}`;
+    const users = await this.get(key) || [];
+    if (!users.includes(userId)) {
+      users.push(userId);
+      await this.set(key, users, 3600);
+    }
+  }
+
+  async removeUserFromMeeting(meetingId: string, userId: string): Promise<void> {
+    const key = `meeting_users:${meetingId}`;
+    const users = await this.get(key) || [];
+    const filtered = users.filter((id: string) => id !== userId);
+    await this.set(key, filtered, 3600);
+  }
+
+  async getMeetingUsers(meetingId: string): Promise<string[]> {
+    return await this.get(`meeting_users:${meetingId}`) || [];
+  }
 }

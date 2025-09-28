@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 
 import { DatabaseService } from './services/database';
 import { RedisService } from './services/redis';
-import { ChatController } from './controllers/chat-controller';
+import { MeetingController } from './controllers/meeting-controller';
 import { SocketHandler } from './handlers/socket-handler';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
@@ -56,10 +56,9 @@ async function startServer() {
     });
 
     // API routes
-    const chatController = new ChatController();
+    const meetingController = new MeetingController();
     app.use('/api/auth', authMiddleware);
-    app.use('/api/rooms', chatController.router);
-    app.use('/api/messages', chatController.router);
+    app.use('/api/meetings', meetingController.router);
 
     // Socket.IO handling
     const socketHandler = new SocketHandler(io);
