@@ -1,0 +1,131 @@
+# Claude Code Configuration for Multilingual Chat Platform
+project:
+  name: "multilingual-chat"
+  description: "Real-time multilingual communication platform"
+  version: "1.0.0"
+
+# Development context
+context:
+  framework: "microservices"
+  languages: ["typescript", "python", "javascript"]
+  databases: ["postgresql", "redis"]
+  deployment: "docker"
+
+# File patterns to include/exclude
+files:
+  include:
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+    - "**/*.py"
+    - "**/*.sql"
+    - "**/*.yml"
+    - "**/*.yaml"
+    - "**/*.json"
+    - "**/*.md"
+    - "**/Dockerfile*"
+    - "**/.env.example"
+  exclude:
+    - "node_modules/**"
+    - "dist/**"
+    - "build/**"
+    - "**/__pycache__/**"
+    - "**/venv/**"
+    - "**/.git/**"
+    - "**/logs/**"
+    - "**/*.log"
+
+# Project structure awareness
+architecture:
+  services:
+    - name: "chat-service"
+      path: "backend/services/chat-service"
+      language: "typescript"
+      framework: "express"
+      description: "WebSocket chat server with room management"
+
+    - name: "translation-service"
+      path: "backend/services/translation-service"
+      language: "python"
+      framework: "fastapi"
+      description: "Translation service using LibreTranslate"
+
+    - name: "stt-service"
+      path: "backend/services/stt-service"
+      language: "python"
+      framework: "fastapi"
+      description: "Speech-to-text using Whisper"
+
+    - name: "tts-service"
+      path: "backend/services/tts-service"
+      language: "python"
+      framework: "fastapi"
+      description: "Text-to-speech using Piper"
+
+    - name: "frontend"
+      path: "frontend"
+      language: "typescript"
+      framework: "react"
+      description: "React frontend with multilingual support"
+
+# Development phases
+phases:
+  current: "phase1-foundation"
+  phases:
+    - name: "phase1-foundation"
+      description: "Core infrastructure and basic translation"
+      weeks: "1-4"
+      focus: ["docker-setup", "chat-service", "translation-service", "basic-frontend"]
+
+    - name: "phase2-audio"
+      description: "Audio processing integration"
+      weeks: "5-8"
+      focus: ["stt-service", "tts-service", "webrtc", "audio-pipeline"]
+
+    - name: "phase3-optimization"
+      description: "Performance and real-time features"
+      weeks: "9-12"
+      focus: ["caching", "queues", "ui-enhancement", "persistence"]
+
+    - name: "phase4-production"
+      description: "Production readiness"
+      weeks: "13-16"
+      focus: ["security", "monitoring", "deployment", "testing"]
+
+# Coding standards
+standards:
+  typescript:
+    style: "prettier"
+    linting: "eslint"
+    testing: "jest"
+  python:
+    style: "black"
+    linting: "flake8"
+    testing: "pytest"
+  documentation: "inline-comments"
+
+# Key technologies and patterns
+technologies:
+  backend:
+    - "Node.js + Express + Socket.IO"
+    - "Python + FastAPI + Whisper"
+    - "PostgreSQL + Redis"
+    - "LibreTranslate"
+  frontend:
+    - "React + TypeScript"
+    - "Tailwind CSS"
+    - "WebRTC"
+    - "Socket.IO Client"
+  deployment:
+    - "Docker + Docker Compose"
+    - "Kubernetes (production)"
+    - "NGINX (load balancing)"
+
+# Development priorities
+priorities:
+  - "Real-time performance (<3s latency)"
+  - "Multilingual support (10 languages)"
+  - "Cost-effective (open source first)"
+  - "Scalable architecture"
+  - "Production ready"

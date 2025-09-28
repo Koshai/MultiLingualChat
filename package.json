@@ -1,0 +1,18 @@
+{
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.1"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "setup": "./scripts/local-setup.sh",
+    "dev": "source scripts/claude-helpers.sh && cc-start",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:chat": "cd backend/services/chat-service && npm run dev",
+    "dev:translation": "cd backend/services/translation-service && python -m uvicorn main:app --reload --port 3003",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend/services/chat-service && npm install && cd ../translation-service && pip install -r requirements.txt",
+    "test": "npm run test:chat && npm run test:frontend",
+    "test:chat": "cd backend/services/chat-service && npm test",
+    "test:frontend": "cd frontend && npm test"
+  }
+}
