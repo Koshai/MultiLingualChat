@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { DatabaseService } from '../services/database';
 import { RedisService } from '../services/redis';
-import { AuthToken, SocketUser, JoinRoomData, SendMessageData, TranslationRequest } from '../types';
+import { AuthToken, SocketUser, JoinMeetingSocketData, SendMessageData, TranslationRequest } from '../types';
 
 export class SocketHandler {
   private io: Server;
@@ -173,7 +173,7 @@ export class SocketHandler {
 
       // Create message in database
       const message = await this.db.createMessage({
-        roomId: data.roomId,
+        meetingId: data.meetingId,
         userId: user.id,
         content: data.content,
         originalLanguage: data.originalLanguage || user.preferredLanguage,
@@ -194,13 +194,13 @@ export class SocketHandler {
         }
       };
 
-      // Broadcast to room
-      this.io.to(data.roomId).emit('new_message', messageWithUser);
+      // Broadcast to meeting
+      this.io.to(data.meetingId).emit('new_message', messageWithUser);
 
       // Request translation for users with different preferred languages
-      this.requestTranslationsForMessage(message, data.roomId);
+      this.requestTranslationsForMessage(message, data.meetingId);
 
-      console.log(`💬 ${user.username} sent message in room ${data.roomId}`);
+      console.log(`💬 ${user.username} sent message in meeting ${data.meetingId}`);
     } catch (error) {
       console.error('Error sending message:', error);
       socket.emit('error', { message: 'Failed to send message' });

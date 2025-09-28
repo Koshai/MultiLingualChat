@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { User, ChatRoom, Message, RoomParticipant, Meeting, MeetingParticipant, AudioTranscription } from '../types';
+import { User, Message, Meeting, MeetingParticipant, AudioTranscription } from '../types';
 
 export class SQLiteDatabaseService {
   private static instance: SQLiteDatabaseService;
@@ -78,7 +78,7 @@ export class SQLiteDatabaseService {
       await run(`
         CREATE TABLE IF NOT EXISTS messages (
           id TEXT PRIMARY KEY,
-          room_id TEXT REFERENCES chat_rooms(id) ON DELETE CASCADE,
+          meeting_id TEXT REFERENCES meetings(id) ON DELETE CASCADE,
           user_id TEXT REFERENCES users(id),
           content TEXT NOT NULL,
           original_language TEXT NOT NULL,
@@ -315,9 +315,9 @@ export class SQLiteDatabaseService {
     const now = new Date().toISOString();
 
     await this.run(`
-      INSERT INTO messages (id, room_id, user_id, content, original_language, message_type, created_at, updated_at)
+      INSERT INTO messages (id, meeting_id, user_id, content, original_language, message_type, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [id, messageData.roomId, messageData.userId, messageData.content, messageData.originalLanguage, messageData.messageType, now, now]);
+    `, [id, messageData.meetingId, messageData.userId, messageData.content, messageData.originalLanguage, messageData.messageType, now, now]);
 
     const message = await this.getMessageById(id);
     if (!message) throw new Error('Failed to create message');
@@ -339,15 +339,15 @@ export class SQLiteDatabaseService {
     return row ? this.mapMessage(row) : null;
   }
 
-  async getRoomMessages(roomId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
+  async getMeetingMessages(meetingId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
     const rows = await this.query(`
       SELECT m.*, u.username, u.display_name, u.preferred_language
       FROM messages m
       LEFT JOIN users u ON m.user_id = u.id
-      WHERE m.room_id = ?
+      WHERE m.meeting_id = ?
       ORDER BY m.created_at DESC
       LIMIT ? OFFSET ?
-    `, [roomId, limit, offset]);
+    `, [meetingId, limit, offset]);
 
     return rows.map((row: any) => ({
       ...this.mapMessage(row),
@@ -388,8 +388,8 @@ export class SQLiteDatabaseService {
     await this.run('DELETE FROM room_participants WHERE room_id = ? AND user_id = ?', [roomId, userId]);
   }
 
-  async getMessagesByRoom(roomId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
-    return this.getRoomMessages(roomId, limit, offset);
+  async getMessagesByMeeting(meetingId: string, limit: number = 50, offset: number = 0): Promise<Message[]> {
+    return this.getMeetingMessages(meetingId, limit, offset);
   }
 
   async getUserRooms(userId: string): Promise<ChatRoom[]> {
@@ -575,7 +575,7 @@ export class SQLiteDatabaseService {
   private mapMessage(row: any): Message {
     return {
       id: row.id,
-      roomId: row.room_id,
+      meetingId: row.meeting_id,
       userId: row.user_id,
       content: row.content,
       originalLanguage: row.original_language,

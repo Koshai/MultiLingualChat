@@ -8,20 +8,9 @@ export interface User {
   updatedAt: Date;
 }
 
-export interface ChatRoom {
-  id: string;
-  name: string;
-  description?: string;
-  isPublic: boolean;
-  maxParticipants: number;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface Message {
   id: string;
-  roomId: string;
+  meetingId: string;
   userId: string;
   content: string;
   originalLanguage: string;
@@ -41,29 +30,13 @@ export interface MessageTranslation {
   createdAt: Date;
 }
 
-export interface RoomParticipant {
-  id: string;
-  roomId: string;
-  userId: string;
-  joinedAt: Date;
-  role: 'member' | 'moderator' | 'admin';
-}
-
 export interface SocketUser {
   socketId: string;
   userId: string;
   username: string;
   displayName: string;
   preferredLanguage: string;
-  currentRoom?: string;
-}
-
-export interface ChatEvent {
-  type: 'message' | 'user_joined' | 'user_left' | 'typing' | 'translation_ready';
-  data: any;
-  timestamp: Date;
-  roomId?: string;
-  userId?: string;
+  currentMeeting?: string;
 }
 
 export interface AuthToken {
@@ -74,22 +47,15 @@ export interface AuthToken {
   exp: number;
 }
 
-export interface CreateRoomData {
-  name: string;
-  description?: string;
-  isPublic?: boolean;
-  maxParticipants?: number;
-}
-
 export interface SendMessageData {
-  roomId: string;
+  meetingId: string;
   content: string;
   messageType?: 'text' | 'image' | 'audio';
   originalLanguage?: string;
 }
 
-export interface JoinRoomData {
-  roomId: string;
+export interface JoinMeetingSocketData {
+  meetingId: string;
 }
 
 export interface TranslationRequest {
