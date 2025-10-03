@@ -1,19 +1,19 @@
 import { Routes, Route } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
-import { useChatStore } from '@/stores/chat-store'
+import { useMeetingStore } from '@/stores/meeting-store'
 
 // Components
 import { Layout } from '@/components/layout/Layout'
 import { LoginPage } from '@/components/auth/LoginPage'
-import { ChatRoom } from '@/components/chat/ChatRoom'
-import { RoomList } from '@/components/rooms/RoomList'
-import { HomePage } from '@/components/home/HomePage'
+import { MeetingRoom } from '@/components/meetings/MeetingRoom'
+import { MeetingList } from '@/components/meetings/MeetingList'
+import { Dashboard } from '@/components/dashboard/Dashboard'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 function App() {
   const { isAuthenticated, isLoading, checkAuth } = useAuthStore()
-  const { initializeSocket, cleanup } = useChatStore()
+  const { initializeSocket, cleanup } = useMeetingStore()
 
   useEffect(() => {
     // Check authentication status on app start
@@ -49,9 +49,9 @@ function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/rooms" element={<RoomList />} />
-        <Route path="/room/:roomId" element={<ChatRoom />} />
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/meetings" element={<MeetingList />} />
+        <Route path="/meeting/:meetingId" element={<MeetingRoom />} />
         <Route path="*" element={
           <div className="min-h-screen flex items-center justify-center">
             <div className="text-center">

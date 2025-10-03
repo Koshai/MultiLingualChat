@@ -9,23 +9,26 @@ export interface User {
   updatedAt: string
 }
 
-// Chat room types
-export interface ChatRoom {
+// Meeting types
+export interface Meeting {
   id: string
-  name: string
+  title: string
   description?: string
   isPublic: boolean
   maxParticipants: number
+  scheduledAt?: string
+  language: string
   createdBy: string
   createdAt: string
   updatedAt: string
+  status: 'scheduled' | 'active' | 'ended'
   participantCount?: number
 }
 
 // Message types
 export interface Message {
   id: string
-  roomId: string
+  meetingId: string
   userId: string
   content: string
   originalLanguage: string
@@ -56,14 +59,14 @@ export interface SocketUser {
   username: string
   displayName: string
   preferredLanguage: string
-  currentRoom?: string
+  currentMeeting?: string
 }
 
-export interface ChatEvent {
-  type: 'message' | 'user_joined' | 'user_left' | 'typing' | 'translation_ready'
+export interface MeetingEvent {
+  type: 'participant_joined' | 'participant_left' | 'audio_enabled' | 'video_enabled' | 'screen_share' | 'message' | 'transcription' | 'translation'
   data: any
   timestamp: string
-  roomId?: string
+  meetingId: string
   userId?: string
 }
 
@@ -82,17 +85,25 @@ export interface LoginResponse {
   error?: string
 }
 
-export interface CreateRoomRequest {
-  name: string
+export interface CreateMeetingRequest {
+  title: string
   description?: string
   isPublic?: boolean
   maxParticipants?: number
+  scheduledAt?: string
+  language?: string
 }
 
 export interface SendMessageRequest {
   content: string
   messageType?: 'text' | 'image' | 'audio'
   originalLanguage?: string
+}
+
+export interface JoinMeetingRequest {
+  meetingId: string
+  audioEnabled?: boolean
+  videoEnabled?: boolean
 }
 
 // Translation types
@@ -128,12 +139,16 @@ export interface TypingUser {
   displayName: string
 }
 
-export interface RoomParticipant {
+export interface MeetingParticipant {
   id: string
-  roomId: string
+  meetingId: string
   userId: string
   joinedAt: string
-  role: 'member' | 'moderator' | 'admin'
+  leftAt?: string
+  role: 'host' | 'moderator' | 'participant'
+  audioEnabled: boolean
+  videoEnabled: boolean
+  screenSharing: boolean
   user?: User
 }
 
@@ -172,3 +187,45 @@ export const SUPPORTED_LANGUAGES = [
 ] as const
 
 export type LanguageCode = typeof SUPPORTED_LANGUAGES[number]['code']
+
+// Video conferencing types
+export interface MediaDevice {
+  deviceId: string
+  label: string
+  kind: 'audioinput' | 'audiooutput' | 'videoinput'
+}
+
+export interface MediaSettings {
+  videoEnabled: boolean
+  audioEnabled: boolean
+  screenSharing: boolean
+  selectedCamera?: string
+  selectedMicrophone?: string
+  selectedSpeaker?: string
+}
+
+export interface WebRTCConnection {
+  userId: string
+  peerConnection: RTCPeerConnection
+  stream?: MediaStream
+}
+
+export interface AudioTranscription {
+  id: string
+  meetingId: string
+  userId: string
+  text: string
+  language: string
+  timestamp: string
+  confidence: number
+  translations?: TranscriptionTranslation[]
+}
+
+export interface TranscriptionTranslation {
+  id: string
+  transcriptionId: string
+  targetLanguage: string
+  translatedText: string
+  confidence: number
+  createdAt: string
+}

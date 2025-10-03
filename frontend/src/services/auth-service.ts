@@ -44,80 +44,43 @@ api.interceptors.response.use(
 export const authService = {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     try {
-      // For demo purposes, we'll create a mock login
-      // In a real app, this would make an API call
-      const mockUser: User = {
-        id: '1',
-        username: credentials.username,
-        email: `${credentials.username}@example.com`,
-        displayName: credentials.username.charAt(0).toUpperCase() + credentials.username.slice(1),
-        preferredLanguage: 'en',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-
-      // Mock JWT token
-      const mockToken = btoa(JSON.stringify({
-        userId: mockUser.id,
-        username: mockUser.username,
-        email: mockUser.email,
-        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 hours
-      }))
-
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      return {
-        success: true,
-        data: {
-          user: mockUser,
-          token: mockToken
-        }
-      }
+      console.log('🔐 Attempting login for:', credentials.username);
+      const response = await api.post('/auth/login', credentials);
+      console.log('✅ Login successful:', response.data);
+      return response.data;
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('Login error:', error);
+      if (error instanceof Error) {
+        return {
+          success: false,
+          error: error.message || 'Login failed. Please try again.'
+        };
+      }
       return {
         success: false,
         error: 'Login failed. Please try again.'
-      }
+      };
     }
   },
 
   async register(userData: any): Promise<LoginResponse> {
     try {
-      // Mock registration
-      const mockUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        username: userData.username,
-        email: userData.email,
-        displayName: userData.displayName,
-        preferredLanguage: userData.preferredLanguage || 'en',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-
-      const mockToken = btoa(JSON.stringify({
-        userId: mockUser.id,
-        username: mockUser.username,
-        email: mockUser.email,
-        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60)
-      }))
-
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      return {
-        success: true,
-        data: {
-          user: mockUser,
-          token: mockToken
-        }
-      }
+      console.log('📝 Attempting registration for:', userData.username);
+      const response = await api.post('/auth/register', userData);
+      console.log('✅ Registration successful:', response.data);
+      return response.data;
     } catch (error) {
-      console.error('Registration error:', error)
+      console.error('Registration error:', error);
+      if (error instanceof Error) {
+        return {
+          success: false,
+          error: error.message || 'Registration failed. Please try again.'
+        };
+      }
       return {
         success: false,
         error: 'Registration failed. Please try again.'
-      }
+      };
     }
   },
 

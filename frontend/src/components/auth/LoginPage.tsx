@@ -57,6 +57,7 @@ export function LoginPage() {
       username: data.username,
       email: data.email,
       displayName: data.displayName,
+      password: data.password,
       preferredLanguage: data.preferredLanguage
     })
   }

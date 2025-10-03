@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import { DatabaseService } from './services/database';
 import { RedisService } from './services/redis';
 import { MeetingController } from './controllers/meeting-controller';
+import { AuthController } from './controllers/auth-controller';
 import { SocketHandler } from './handlers/socket-handler';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error-handler';
@@ -22,7 +23,11 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin: [
+      process.env.CORS_ORIGIN || "http://localhost:3000",
+      "http://localhost:5173",
+      "http://localhost:5174"
+    ],
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -39,7 +44,11 @@ async function startServer() {
     // Middleware
     app.use(helmet());
     app.use(cors({
-      origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+      origin: [
+        process.env.CORS_ORIGIN || "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174"
+      ],
       credentials: true
     }));
     app.use(morgan('combined'));
@@ -56,9 +65,11 @@ async function startServer() {
     });
 
     // API routes
+    const authController = new AuthController();
     const meetingController = new MeetingController();
-    app.use('/api/auth', authMiddleware);
-    app.use('/api/meetings', meetingController.router);
+
+    app.use('/api/auth', authController.router);
+    app.use('/api/meetings', authMiddleware, meetingController.router);
 
     // Socket.IO handling
     const socketHandler = new SocketHandler(io);

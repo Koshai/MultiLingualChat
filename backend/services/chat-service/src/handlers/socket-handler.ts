@@ -28,7 +28,43 @@ export class SocketHandler {
         return next(new Error('Authentication token required'));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as AuthToken;
+      let decoded: AuthToken;
+
+      // Development mode: Allow mock tokens
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const decodedSignature = Buffer.from(parts[2], 'base64').toString();
+            if (decodedSignature === 'mock-signature') {
+              // Decode mock token payload
+              decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+
+              // For mock auth, create or get user from database
+              let user = await this.db.getUserById(decoded.userId);
+              if (!user) {
+                // Create mock user in database
+                user = await this.db.createUser({
+                  username: decoded.username,
+                  email: decoded.email,
+                  password: 'mock-password', // Won't be used
+                  displayName: decoded.username?.charAt(0).toUpperCase() + decoded.username?.slice(1) || 'User',
+                  preferredLanguage: 'en'
+                });
+              }
+
+              (socket as any).user = user;
+              next();
+              return;
+            }
+          }
+        } catch (e) {
+          // If mock token parsing fails, continue to real JWT verification
+        }
+      }
+
+      // Real JWT verification
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as AuthToken;
       const user = await this.db.getUserById(decoded.userId);
 
       if (!user) {
@@ -58,12 +94,18 @@ export class SocketHandler {
     await this.redis.setSocketUser(socket.id, socketUser);
 
     // Set up event handlers
-    socket.on('join_room', this.handleJoinRoom.bind(this, socket));
-    socket.on('leave_room', this.handleLeaveRoom.bind(this, socket));
+    socket.on('join_meeting', this.handleJoinMeeting.bind(this, socket));
+    socket.on('leave_meeting', this.handleLeaveMeeting.bind(this, socket));
     socket.on('send_message', this.handleSendMessage.bind(this, socket));
     socket.on('typing_start', this.handleTypingStart.bind(this, socket));
     socket.on('typing_stop', this.handleTypingStop.bind(this, socket));
     socket.on('request_translation', this.handleTranslationRequest.bind(this, socket));
+    socket.on('enable_audio', this.handleEnableAudio.bind(this, socket));
+    socket.on('disable_audio', this.handleDisableAudio.bind(this, socket));
+    socket.on('enable_video', this.handleEnableVideo.bind(this, socket));
+    socket.on('disable_video', this.handleDisableVideo.bind(this, socket));
+    socket.on('start_screen_share', this.handleStartScreenShare.bind(this, socket));
+    socket.on('stop_screen_share', this.handleStopScreenShare.bind(this, socket));
     socket.on('disconnect', this.handleDisconnect.bind(this, socket));
 
     // Send current user info
@@ -77,86 +119,143 @@ export class SocketHandler {
     });
   }
 
-  private async handleJoinRoom(socket: Socket, data: JoinRoomData): Promise<void> {
+  private async handleJoinMeeting(socket: Socket, data: JoinMeetingSocketData): Promise<void> {
     try {
       const user = (socket as any).user;
-      const { roomId } = data;
+      const { meetingId, audioEnabled = true, videoEnabled = true } = data;
 
-      // Validate room exists
-      const room = await this.db.getRoomById(roomId);
-      if (!room) {
-        socket.emit('error', { message: 'Room not found' });
+      // Validate meeting exists
+      const meeting = await this.db.getMeetingById(meetingId);
+      if (!meeting) {
+        socket.emit('meeting_error', { message: 'Meeting not found' });
         return;
       }
 
-      // Add user to room in database
-      await this.db.addParticipant(roomId, user.id);
+      // Add user to meeting in database
+      await this.db.addMeetingParticipant(meetingId, user.id, {
+        audioEnabled,
+        videoEnabled,
+        role: 'participant'
+      });
 
       // Join socket room
-      socket.join(roomId);
+      socket.join(meetingId);
 
       // Update Redis
-      await this.redis.addUserToRoom(roomId, user.id);
+      await this.redis.addUserToRoom(meetingId, user.id);
 
-      // Get updated participant list
-      const participants = await this.redis.getRoomUsers(roomId);
+      // Get updated participant list (user IDs)
+      const participantUserIds = await this.redis.getRoomUsers(meetingId);
 
-      // Notify room about new user
-      socket.to(roomId).emit('user_joined', {
+      // Get full participant data from database for all participants
+      const participantData = await this.db.getMeetingParticipants(meetingId);
+
+      // Build full participant list with user data
+      const participants = await Promise.all(participantUserIds.map(async (userId) => {
+        const participantUser = await this.db.getUserById(userId);
+        const dbParticipant = participantData.find(p => p.userId === userId);
+
+        return {
+          id: `${meetingId}-${userId}`,
+          meetingId,
+          userId,
+          joinedAt: dbParticipant?.joinedAt || new Date().toISOString(),
+          role: (dbParticipant?.role || 'participant') as const,
+          audioEnabled: dbParticipant?.audioEnabled ?? true,
+          videoEnabled: dbParticipant?.videoEnabled ?? true,
+          screenSharing: false,
+          user: participantUser ? {
+            id: participantUser.id,
+            username: participantUser.username,
+            displayName: participantUser.displayName,
+            email: participantUser.email,
+            preferredLanguage: participantUser.preferredLanguage,
+            createdAt: participantUser.createdAt,
+            updatedAt: participantUser.updatedAt
+          } : undefined
+        };
+      }));
+
+      // Create current participant data
+      const participant = {
+        id: `${meetingId}-${user.id}`,
+        meetingId,
+        userId: user.id,
+        joinedAt: new Date().toISOString(),
+        role: 'participant' as const,
+        audioEnabled,
+        videoEnabled,
+        screenSharing: false,
         user: {
           id: user.id,
           username: user.username,
           displayName: user.displayName,
-          preferredLanguage: user.preferredLanguage
-        },
-        room: room,
+          email: user.email,
+          preferredLanguage: user.preferredLanguage,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        }
+      };
+
+      // Notify meeting about new participant
+      socket.to(meetingId).emit('participant_joined', {
+        participant,
         timestamp: new Date()
       });
 
-      // Send success response to user
-      socket.emit('room_joined', {
-        room: room,
+      // Send success response to user with full participant list
+      socket.emit('meeting_joined', {
+        meeting: meeting,
         participants: participants,
         timestamp: new Date()
       });
 
-      console.log(`👥 ${user.username} joined room ${room.name}`);
+      console.log(`👥 ${user.username} joined meeting ${meeting.title}`);
     } catch (error) {
-      console.error('Error joining room:', error);
-      socket.emit('error', { message: 'Failed to join room' });
+      console.error('Error joining meeting:', error);
+      socket.emit('meeting_error', { message: 'Failed to join meeting', error: error instanceof Error ? error.message : String(error) });
     }
   }
 
-  private async handleLeaveRoom(socket: Socket, data: { roomId: string }): Promise<void> {
+  private async handleLeaveMeeting(socket: Socket, data: { meetingId: string }): Promise<void> {
     try {
       const user = (socket as any).user;
-      const { roomId } = data;
+      const { meetingId } = data;
 
       // Leave socket room
-      socket.leave(roomId);
+      socket.leave(meetingId);
 
       // Update Redis
-      await this.redis.removeUserFromRoom(roomId, user.id);
+      await this.redis.removeUserFromRoom(meetingId, user.id);
 
       // Remove from database
-      await this.db.removeParticipant(roomId, user.id);
+      await this.db.removeMeetingParticipant(meetingId, user.id);
 
-      // Notify room about user leaving
-      socket.to(roomId).emit('user_left', {
+      // Create participant data for leaving event
+      const participant = {
+        id: `${meetingId}-${user.id}`,
+        meetingId,
+        userId: user.id,
+        leftAt: new Date().toISOString(),
         user: {
           id: user.id,
           username: user.username,
           displayName: user.displayName
-        },
+        }
+      };
+
+      // Notify meeting about participant leaving
+      socket.to(meetingId).emit('participant_left', {
+        participant,
         timestamp: new Date()
       });
 
-      socket.emit('room_left', { roomId, timestamp: new Date() });
+      socket.emit('meeting_left', { meetingId, timestamp: new Date() });
 
-      console.log(`👋 ${user.username} left room ${roomId}`);
+      console.log(`👋 ${user.username} left meeting ${meetingId}`);
     } catch (error) {
-      console.error('Error leaving room:', error);
-      socket.emit('error', { message: 'Failed to leave room' });
+      console.error('Error leaving meeting:', error);
+      socket.emit('meeting_error', { message: 'Failed to leave meeting', error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -167,7 +266,7 @@ export class SocketHandler {
       // Rate limiting check
       const canSend = await this.redis.checkRateLimit(user.id, 'socket_message', 60, 60000);
       if (!canSend) {
-        socket.emit('error', { message: 'Rate limit exceeded' });
+        socket.emit('meeting_error', { message: 'Rate limit exceeded' });
         return;
       }
 
@@ -203,7 +302,7 @@ export class SocketHandler {
       console.log(`💬 ${user.username} sent message in meeting ${data.meetingId}`);
     } catch (error) {
       console.error('Error sending message:', error);
-      socket.emit('error', { message: 'Failed to send message' });
+      socket.emit('meeting_error', { message: 'Failed to send message', error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -263,7 +362,7 @@ export class SocketHandler {
 
     } catch (error) {
       console.error('Error handling translation request:', error);
-      socket.emit('error', { message: 'Translation request failed' });
+      socket.emit('meeting_error', { message: 'Translation request failed', error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -276,13 +375,32 @@ export class SocketHandler {
         const userRooms = await this.redis.getUserRooms(user.id);
 
         for (const roomId of userRooms) {
-          socket.to(roomId).emit('user_disconnected', {
+          // Create participant data for leaving event
+          const participant = {
+            id: `${roomId}-${user.id}`,
+            meetingId: roomId,
             userId: user.id,
-            username: user.username,
+            leftAt: new Date().toISOString(),
+            user: {
+              id: user.id,
+              username: user.username,
+              displayName: user.displayName
+            }
+          };
+
+          // Notify meeting about participant leaving
+          socket.to(roomId).emit('participant_left', {
+            participant,
             timestamp: new Date()
           });
 
+          // Remove from Redis
           await this.redis.removeUserFromRoom(roomId, user.id);
+
+          // Remove from database
+          await this.db.removeMeetingParticipant(roomId, user.id);
+
+          console.log(`👋 ${user.username} disconnected and left meeting ${roomId}`);
         }
 
         // Clean up socket data
@@ -318,6 +436,108 @@ export class SocketHandler {
       }
     } catch (error) {
       console.error('Error requesting translations:', error);
+    }
+  }
+
+  private async handleEnableAudio(socket: Socket, data: { meetingId: string }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { meetingId } = data;
+
+      // Broadcast to meeting
+      socket.to(meetingId).emit('audio_enabled', {
+        userId: user.id,
+        timestamp: new Date()
+      });
+
+      console.log(`🎤 ${user.username} enabled audio in meeting ${meetingId}`);
+    } catch (error) {
+      console.error('Error enabling audio:', error);
+    }
+  }
+
+  private async handleDisableAudio(socket: Socket, data: { meetingId: string }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { meetingId } = data;
+
+      // Broadcast to meeting
+      socket.to(meetingId).emit('audio_disabled', {
+        userId: user.id,
+        timestamp: new Date()
+      });
+
+      console.log(`🔇 ${user.username} disabled audio in meeting ${meetingId}`);
+    } catch (error) {
+      console.error('Error disabling audio:', error);
+    }
+  }
+
+  private async handleEnableVideo(socket: Socket, data: { meetingId: string }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { meetingId } = data;
+
+      // Broadcast to meeting
+      socket.to(meetingId).emit('video_enabled', {
+        userId: user.id,
+        timestamp: new Date()
+      });
+
+      console.log(`📹 ${user.username} enabled video in meeting ${meetingId}`);
+    } catch (error) {
+      console.error('Error enabling video:', error);
+    }
+  }
+
+  private async handleDisableVideo(socket: Socket, data: { meetingId: string }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { meetingId } = data;
+
+      // Broadcast to meeting
+      socket.to(meetingId).emit('video_disabled', {
+        userId: user.id,
+        timestamp: new Date()
+      });
+
+      console.log(`📷 ${user.username} disabled video in meeting ${meetingId}`);
+    } catch (error) {
+      console.error('Error disabling video:', error);
+    }
+  }
+
+  private async handleStartScreenShare(socket: Socket, data: { meetingId: string }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { meetingId } = data;
+
+      // Broadcast to meeting
+      socket.to(meetingId).emit('screen_share_started', {
+        userId: user.id,
+        timestamp: new Date()
+      });
+
+      console.log(`🖥️ ${user.username} started screen share in meeting ${meetingId}`);
+    } catch (error) {
+      console.error('Error starting screen share:', error);
+    }
+  }
+
+  private async handleStopScreenShare(socket: Socket, data: { meetingId: string }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { meetingId } = data;
+
+      // Broadcast to meeting
+      socket.to(meetingId).emit('screen_share_stopped', {
+        userId: user.id,
+        timestamp: new Date()
+      });
+
+      console.log(`🛑 ${user.username} stopped screen share in meeting ${meetingId}`);
+    } catch (error) {
+      console.error('Error stopping screen share:', error);
     }
   }
 }

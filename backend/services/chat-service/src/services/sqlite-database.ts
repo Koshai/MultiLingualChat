@@ -269,9 +269,33 @@ export class SQLiteDatabaseService {
     return row ? this.mapUser(row) : null;
   }
 
+  async getUserByUsernameWithPassword(username: string): Promise<(User & { passwordHash: string | null }) | null> {
+    const row = await new Promise<any>((resolve, reject) => {
+      this.db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+    if (!row) return null;
+    return {
+      ...this.mapUser(row),
+      passwordHash: row.password_hash
+    };
+  }
+
   async getUserById(id: string): Promise<User | null> {
     const row = await new Promise<any>((resolve, reject) => {
       this.db.get('SELECT * FROM users WHERE id = ?', [id], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+    return row ? this.mapUser(row) : null;
+  }
+
+  async getUserByEmail(email: string): Promise<User | null> {
+    const row = await new Promise<any>((resolve, reject) => {
+      this.db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
         if (err) reject(err);
         else resolve(row);
       });

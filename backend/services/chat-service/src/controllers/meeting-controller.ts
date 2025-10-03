@@ -18,25 +18,21 @@ export class MeetingController {
 
   private setupRoutes(): void {
     // Meeting routes
-    this.router.get('/meetings', this.getMeetings.bind(this));
-    this.router.post('/meetings', this.createMeeting.bind(this));
-    this.router.get('/meetings/:meetingId', this.getMeeting.bind(this));
-    this.router.post('/meetings/:meetingId/join', this.joinMeeting.bind(this));
-    this.router.post('/meetings/:meetingId/leave', this.leaveMeeting.bind(this));
-    this.router.get('/meetings/:meetingId/participants', this.getMeetingParticipants.bind(this));
+    this.router.get('/', this.getMeetings.bind(this));
+    this.router.post('/', this.createMeeting.bind(this));
+    this.router.get('/:meetingId', this.getMeeting.bind(this));
+    this.router.post('/:meetingId/join', this.joinMeeting.bind(this));
+    this.router.post('/:meetingId/leave', this.leaveMeeting.bind(this));
+    this.router.get('/:meetingId/participants', this.getMeetingParticipants.bind(this));
 
     // Audio/Video routes
-    this.router.post('/meetings/:meetingId/audio', this.processAudio.bind(this));
-    this.router.get('/meetings/:meetingId/transcriptions', this.getTranscriptions.bind(this));
+    this.router.post('/:meetingId/audio', this.processAudio.bind(this));
+    this.router.get('/:meetingId/transcriptions', this.getTranscriptions.bind(this));
 
     // WebRTC signaling routes
-    this.router.post('/meetings/:meetingId/offer', this.handleOffer.bind(this));
-    this.router.post('/meetings/:meetingId/answer', this.handleAnswer.bind(this));
-    this.router.post('/meetings/:meetingId/ice-candidate', this.handleIceCandidate.bind(this));
-
-    // User routes
-    this.router.get('/me', this.getCurrentUser.bind(this));
-    this.router.get('/me/meetings', this.getUserMeetings.bind(this));
+    this.router.post('/:meetingId/offer', this.handleOffer.bind(this));
+    this.router.post('/:meetingId/answer', this.handleAnswer.bind(this));
+    this.router.post('/:meetingId/ice-candidate', this.handleIceCandidate.bind(this));
   }
 
   // Meeting handlers
@@ -52,9 +48,12 @@ export class MeetingController {
 
   async createMeeting(req: Request, res: Response): Promise<void> {
     try {
+      console.log('📝 Create meeting request:', req.body);
+      console.log('👤 User from auth:', (req as any).user);
+
       const schema = Joi.object({
         title: Joi.string().min(1).max(100).required(),
-        description: Joi.string().max(500).optional(),
+        description: Joi.string().max(500).optional().allow(''),
         isPublic: Joi.boolean().default(true),
         maxParticipants: Joi.number().min(2).max(100).default(10),
         scheduledAt: Joi.date().optional(),
@@ -63,12 +62,15 @@ export class MeetingController {
 
       const { error, value } = schema.validate(req.body);
       if (error) {
+        console.error('❌ Validation error:', error.details[0].message);
         res.status(400).json({ success: false, error: error.details[0].message });
         return;
       }
 
       const meetingData: CreateMeetingData = value;
       const userId = (req as any).user.userId;
+      console.log('✅ Validated data:', meetingData);
+      console.log('👤 User ID:', userId);
 
       const meeting = await this.db.createMeeting({
         ...meetingData,
