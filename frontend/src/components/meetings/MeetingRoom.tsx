@@ -2,8 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useMeetingStore } from '@/stores/meeting-store'
 import { useAuthStore } from '@/stores/auth-store'
-import { Message, MeetingParticipant, AudioTranscription } from '@/types'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { VideoTile } from './VideoTile'
 import { apiService } from '@/services/api'
 import toast from 'react-hot-toast'
 
@@ -17,6 +17,8 @@ export function MeetingRoom() {
     messages,
     transcriptions,
     mediaSettings,
+    localStream,
+    remoteStreams,
     isConnected,
     joinMeeting,
     leaveMeeting,
@@ -26,13 +28,16 @@ export function MeetingRoom() {
     toggleScreenShare,
     startTyping,
     stopTyping,
-    setCurrentMeeting
+    setCurrentMeeting,
+    initializeWebRTC,
+    setupPeerConnection
   } = useMeetingStore()
 
   const [newMessage, setNewMessage] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [showChat, setShowChat] = useState(true)
   const [showTranscriptions, setShowTranscriptions] = useState(false)
+  const localVideoRef = useRef<HTMLVideoElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout>()
 
@@ -49,6 +54,14 @@ export function MeetingRoom() {
           // Then join via socket if connected
           if (isConnected) {
             joinMeeting(meetingId)
+
+            // Initialize WebRTC after joining
+            try {
+              await initializeWebRTC()
+              console.log('✅ WebRTC initialized for meeting')
+            } catch (error) {
+              console.error('Failed to initialize WebRTC:', error)
+            }
           }
         } else {
           console.error('Failed to load meeting:', response.error)
@@ -70,6 +83,29 @@ export function MeetingRoom() {
       }
     }
   }, [meetingId, isConnected])
+
+  // Set up local video stream
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream
+    }
+  }, [localStream])
+
+  // Set up peer connections when participants join
+  useEffect(() => {
+    const setupConnections = async () => {
+      for (const participant of participants) {
+        if (participant.userId !== user?.id && !remoteStreams.has(participant.userId)) {
+          console.log('Setting up peer connection for:', participant.userId)
+          await setupPeerConnection(participant.userId)
+        }
+      }
+    }
+
+    if (participants.length > 0) {
+      setupConnections()
+    }
+  }, [participants])
 
   useEffect(() => {
     scrollToBottom()
@@ -199,56 +235,25 @@ export function MeetingRoom() {
         {/* Video Grid */}
         <div className="flex-1 p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 h-full">
-            {/* Main Video (Self) */}
-            <div className="relative bg-gray-800 rounded-lg overflow-hidden border-2 border-blue-500">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl font-bold mb-2">
-                    {user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'}
-                  </div>
-                  <p className="text-white text-sm">{user?.displayName || user?.username} (You)</p>
-                </div>
-              </div>
-              <div className="absolute bottom-2 left-2 text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
-                {user?.displayName || user?.username}
-              </div>
-              {!mediaSettings.videoEnabled && (
-                <div className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded text-xs">
-                  Video Off
-                </div>
-              )}
-              {!mediaSettings.audioEnabled && (
-                <div className="absolute top-2 left-2 bg-red-500 text-white p-1 rounded text-xs">
-                  Muted
-                </div>
-              )}
-            </div>
+            {/* Local Video (Self) */}
+            <VideoTile
+              stream={localStream || undefined}
+              displayName={user?.displayName || user?.username || 'You'}
+              isMuted={!mediaSettings.audioEnabled}
+              isVideoOff={!mediaSettings.videoEnabled}
+              isLocal={true}
+            />
 
-            {/* Participant Videos */}
+            {/* Remote Participant Videos */}
             {participants.filter(p => p.userId !== user?.id).map((participant) => (
-              <div key={participant.id} className="relative bg-gray-800 rounded-lg overflow-hidden">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-16 h-16 bg-gray-500 rounded-full flex items-center justify-center text-white text-xl font-bold mb-2">
-                      {participant.user?.displayName?.charAt(0) || participant.user?.username?.charAt(0) || 'P'}
-                    </div>
-                    <p className="text-white text-sm">{participant.user?.displayName || participant.user?.username}</p>
-                  </div>
-                </div>
-                <div className="absolute bottom-2 left-2 text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">
-                  {participant.user?.displayName || participant.user?.username}
-                </div>
-                {!participant.videoEnabled && (
-                  <div className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded text-xs">
-                    Video Off
-                  </div>
-                )}
-                {!participant.audioEnabled && (
-                  <div className="absolute top-2 left-2 bg-red-500 text-white p-1 rounded text-xs">
-                    Muted
-                  </div>
-                )}
-              </div>
+              <VideoTile
+                key={participant.id}
+                stream={remoteStreams.get(participant.userId)}
+                displayName={participant.user?.displayName || participant.user?.username || 'Guest'}
+                isMuted={!participant.audioEnabled}
+                isVideoOff={!participant.videoEnabled}
+                isLocal={false}
+              />
             ))}
 
             {/* Empty slots for additional participants */}

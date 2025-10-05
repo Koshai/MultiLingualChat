@@ -133,6 +133,11 @@ export class MemoryRedisService {
   async setSocketUser(socketId: string, user: any): Promise<void> {
     const key = `socket:${socketId}`;
     await this.set(key, JSON.stringify(user), 3600); // 1 hour TTL
+
+    // Also store reverse mapping: userId -> socketId
+    if (user.userId) {
+      await this.set(`user_socket:${user.userId}`, socketId, 3600);
+    }
   }
 
   async getSocketUser(socketId: string): Promise<any | null> {
@@ -141,7 +146,17 @@ export class MemoryRedisService {
     return data ? JSON.parse(data) : null;
   }
 
+  async getUserSocketId(userId: string): Promise<string | null> {
+    return await this.get(`user_socket:${userId}`);
+  }
+
   async removeSocketUser(socketId: string): Promise<void> {
+    // Get user data first to remove reverse mapping
+    const userData = await this.getSocketUser(socketId);
+    if (userData && userData.userId) {
+      await this.del(`user_socket:${userData.userId}`);
+    }
+
     await this.del(`socket:${socketId}`);
   }
 

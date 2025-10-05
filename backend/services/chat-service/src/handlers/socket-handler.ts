@@ -106,6 +106,12 @@ export class SocketHandler {
     socket.on('disable_video', this.handleDisableVideo.bind(this, socket));
     socket.on('start_screen_share', this.handleStartScreenShare.bind(this, socket));
     socket.on('stop_screen_share', this.handleStopScreenShare.bind(this, socket));
+
+    // WebRTC signaling handlers
+    socket.on('webrtc:offer', this.handleWebRTCOffer.bind(this, socket));
+    socket.on('webrtc:answer', this.handleWebRTCAnswer.bind(this, socket));
+    socket.on('webrtc:ice-candidate', this.handleWebRTCIceCandidate.bind(this, socket));
+
     socket.on('disconnect', this.handleDisconnect.bind(this, socket));
 
     // Send current user info
@@ -538,6 +544,83 @@ export class SocketHandler {
       console.log(`🛑 ${user.username} stopped screen share in meeting ${meetingId}`);
     } catch (error) {
       console.error('Error stopping screen share:', error);
+    }
+  }
+
+  // WebRTC Signaling Handlers
+  private async handleWebRTCOffer(socket: Socket, data: { targetUserId: string; offer: any }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { targetUserId, offer } = data;
+
+      // Find target user's socket
+      const targetSocketId = await this.redis.getUserSocketId(targetUserId);
+
+      if (targetSocketId) {
+        // Forward offer to target user
+        this.io.to(targetSocketId).emit('webrtc:offer', {
+          userId: user.id,
+          offer: offer
+        });
+
+        console.log(`📞 Forwarded WebRTC offer from ${user.username} to user ${targetUserId}`);
+      } else {
+        socket.emit('meeting_error', { message: 'Target user not found or offline' });
+        console.error(`❌ Target user ${targetUserId} socket not found`);
+      }
+    } catch (error) {
+      console.error('Error handling WebRTC offer:', error);
+      socket.emit('meeting_error', { message: 'Failed to send WebRTC offer' });
+    }
+  }
+
+  private async handleWebRTCAnswer(socket: Socket, data: { targetUserId: string; answer: any }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { targetUserId, answer } = data;
+
+      // Find target user's socket
+      const targetSocketId = await this.redis.getUserSocketId(targetUserId);
+
+      if (targetSocketId) {
+        // Forward answer to target user
+        this.io.to(targetSocketId).emit('webrtc:answer', {
+          userId: user.id,
+          answer: answer
+        });
+
+        console.log(`✅ Forwarded WebRTC answer from ${user.username} to user ${targetUserId}`);
+      } else {
+        socket.emit('meeting_error', { message: 'Target user not found or offline' });
+        console.error(`❌ Target user ${targetUserId} socket not found`);
+      }
+    } catch (error) {
+      console.error('Error handling WebRTC answer:', error);
+      socket.emit('meeting_error', { message: 'Failed to send WebRTC answer' });
+    }
+  }
+
+  private async handleWebRTCIceCandidate(socket: Socket, data: { targetUserId: string; candidate: any }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { targetUserId, candidate } = data;
+
+      // Find target user's socket
+      const targetSocketId = await this.redis.getUserSocketId(targetUserId);
+
+      if (targetSocketId) {
+        // Forward ICE candidate to target user
+        this.io.to(targetSocketId).emit('webrtc:ice-candidate', {
+          userId: user.id,
+          candidate: candidate
+        });
+
+        console.log(`🧊 Forwarded ICE candidate from ${user.username} to user ${targetUserId}`);
+      } else {
+        console.error(`❌ Target user ${targetUserId} socket not found for ICE candidate`);
+      }
+    } catch (error) {
+      console.error('Error handling WebRTC ICE candidate:', error);
     }
   }
 }

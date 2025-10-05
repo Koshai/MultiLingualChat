@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import { io, Socket } from 'socket.io-client'
 import { Message, Meeting, TypingUser, MeetingParticipant, MediaSettings, WebRTCConnection, AudioTranscription } from '@/types'
 import { useAuthStore } from './auth-store'
+import { WebRTCService } from '@/services/webrtc-service'
 import toast from 'react-hot-toast'
 
 interface MeetingState {
@@ -16,7 +17,9 @@ interface MeetingState {
   transcriptions: AudioTranscription[]
   mediaSettings: MediaSettings
   connections: Map<string, WebRTCConnection>
+  remoteStreams: Map<string, MediaStream>
   localStream: MediaStream | null
+  webrtcService: WebRTCService | null
   isLoading: boolean
   error: string | null
 }
@@ -42,6 +45,10 @@ interface MeetingActions {
   toggleScreenShare: () => void
   addTranscription: (transcription: AudioTranscription) => void
   setError: (error: string | null) => void
+  initializeWebRTC: () => Promise<void>
+  setupPeerConnection: (userId: string) => Promise<void>
+  addRemoteStream: (userId: string, stream: MediaStream) => void
+  removeRemoteStream: (userId: string) => void
 }
 
 export const useMeetingStore = create<MeetingState & MeetingActions>()(
@@ -61,7 +68,9 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       screenSharing: false,
     },
     connections: new Map(),
+    remoteStreams: new Map(),
     localStream: null,
+    webrtcService: null,
     isLoading: false,
     error: null,
 
@@ -265,7 +274,13 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     },
 
     cleanup: () => {
-      const { socket } = get()
+      const { socket, webrtcService } = get()
+
+      // Cleanup WebRTC
+      if (webrtcService) {
+        webrtcService.cleanup()
+      }
+
       if (socket) {
         socket.disconnect()
         set({
@@ -275,7 +290,10 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
           messages: [],
           participants: [],
           typingUsers: [],
-          transcriptions: []
+          transcriptions: [],
+          webrtcService: null,
+          localStream: null,
+          remoteStreams: new Map()
         })
       }
     },
@@ -371,7 +389,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     },
 
     toggleAudio: () => {
-      const { mediaSettings, socket, currentMeeting } = get()
+      const { mediaSettings, socket, currentMeeting, webrtcService } = get()
       const newAudioState = !mediaSettings.audioEnabled
 
       set({
@@ -381,6 +399,11 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         }
       })
 
+      // Toggle WebRTC audio track
+      if (webrtcService) {
+        webrtcService.toggleAudio(newAudioState)
+      }
+
       if (socket && socket.connected && currentMeeting) {
         socket.emit(newAudioState ? 'enable_audio' : 'disable_audio', {
           meetingId: currentMeeting.id
@@ -389,7 +412,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     },
 
     toggleVideo: () => {
-      const { mediaSettings, socket, currentMeeting } = get()
+      const { mediaSettings, socket, currentMeeting, webrtcService } = get()
       const newVideoState = !mediaSettings.videoEnabled
 
       set({
@@ -399,6 +422,11 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         }
       })
 
+      // Toggle WebRTC video track
+      if (webrtcService) {
+        webrtcService.toggleVideo(newVideoState)
+      }
+
       if (socket && socket.connected && currentMeeting) {
         socket.emit(newVideoState ? 'enable_video' : 'disable_video', {
           meetingId: currentMeeting.id
@@ -406,8 +434,8 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       }
     },
 
-    toggleScreenShare: () => {
-      const { mediaSettings, socket, currentMeeting } = get()
+    toggleScreenShare: async () => {
+      const { mediaSettings, socket, currentMeeting, webrtcService } = get()
       const newScreenShareState = !mediaSettings.screenSharing
 
       set({
@@ -416,6 +444,34 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
           screenSharing: newScreenShareState
         }
       })
+
+      // Handle screen sharing via WebRTC
+      if (webrtcService && newScreenShareState) {
+        try {
+          const screenStream = await webrtcService.getScreenShareStream()
+          await webrtcService.replaceVideoTrack(screenStream)
+
+          // Stop screen share when user stops it from browser
+          screenStream.getVideoTracks()[0].onended = () => {
+            get().toggleScreenShare()
+          }
+        } catch (error) {
+          console.error('Failed to start screen share:', error)
+          toast.error('Failed to start screen sharing')
+          set({
+            mediaSettings: {
+              ...mediaSettings,
+              screenSharing: false
+            }
+          })
+        }
+      } else if (webrtcService && !newScreenShareState) {
+        // Switch back to camera
+        const localStream = webrtcService.getLocalStream()
+        if (localStream) {
+          await webrtcService.replaceVideoTrack(localStream)
+        }
+      }
 
       if (socket && socket.connected && currentMeeting) {
         socket.emit(newScreenShareState ? 'start_screen_share' : 'stop_screen_share', {
@@ -431,6 +487,70 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
 
     setError: (error: string | null) => {
       set({ error })
+    },
+
+    // WebRTC Methods
+    initializeWebRTC: async () => {
+      const { socket } = get()
+      if (!socket) {
+        console.error('Socket not initialized')
+        return
+      }
+
+      try {
+        // Create WebRTC service
+        const webrtcService = new WebRTCService(socket)
+
+        // Initialize local media stream
+        const localStream = await webrtcService.initializeLocalStream()
+
+        // Set up remote stream callback
+        webrtcService.onRemoteStream((userId, stream) => {
+          console.log('📺 Adding remote stream for user:', userId)
+          get().addRemoteStream(userId, stream)
+        })
+
+        // Set up peer disconnection callback
+        webrtcService.onPeerDisconnected((userId) => {
+          console.log('🔌 Peer disconnected:', userId)
+          get().removeRemoteStream(userId)
+        })
+
+        set({ webrtcService, localStream })
+        console.log('✅ WebRTC initialized successfully')
+      } catch (error) {
+        console.error('❌ Failed to initialize WebRTC:', error)
+        toast.error('Failed to access camera/microphone. Please check permissions.')
+        throw error
+      }
+    },
+
+    setupPeerConnection: async (userId: string) => {
+      const { webrtcService } = get()
+      if (!webrtcService) {
+        console.error('WebRTC service not initialized')
+        return
+      }
+
+      try {
+        console.log('📞 Setting up peer connection with user:', userId)
+        await webrtcService.createOffer(userId)
+      } catch (error) {
+        console.error('Failed to setup peer connection:', error)
+        toast.error('Failed to establish video connection')
+      }
+    },
+
+    addRemoteStream: (userId: string, stream: MediaStream) => {
+      const remoteStreams = new Map(get().remoteStreams)
+      remoteStreams.set(userId, stream)
+      set({ remoteStreams })
+    },
+
+    removeRemoteStream: (userId: string) => {
+      const remoteStreams = new Map(get().remoteStreams)
+      remoteStreams.delete(userId)
+      set({ remoteStreams })
     }
   }))
 )
