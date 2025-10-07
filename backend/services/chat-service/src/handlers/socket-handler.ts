@@ -112,6 +112,9 @@ export class SocketHandler {
     socket.on('webrtc:answer', this.handleWebRTCAnswer.bind(this, socket));
     socket.on('webrtc:ice-candidate', this.handleWebRTCIceCandidate.bind(this, socket));
 
+    // Audio transcription handlers
+    socket.on('audio_chunk', this.handleAudioChunk.bind(this, socket));
+
     socket.on('disconnect', this.handleDisconnect.bind(this, socket));
 
     // Send current user info
@@ -621,6 +624,64 @@ export class SocketHandler {
       }
     } catch (error) {
       console.error('Error handling WebRTC ICE candidate:', error);
+    }
+  }
+
+  private async handleAudioChunk(socket: Socket, data: { meetingId: string; audioData: string; timestamp: number; format: string }): Promise<void> {
+    try {
+      const user = (socket as any).user;
+      const { meetingId, audioData, timestamp, format } = data;
+
+      console.log(`Audio chunk received from ${user.username} for meeting ${meetingId}`);
+
+      // Forward audio to STT service
+      const sttUrl = process.env.STT_SERVICE_URL || 'http://localhost:3004';
+
+      const response = await fetch(`${sttUrl}/api/v1/transcription/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          audio_data: audioData,
+          language: 'en', // TODO: Get from user preferences
+          meeting_id: meetingId,
+          user_id: user.id
+        })
+      });
+
+      if (!response.ok) {
+        console.error(`STT service error: ${response.status}`);
+        return;
+      }
+
+      const transcription = await response.json();
+
+      console.log(`Transcription received: "${transcription.text}"`);
+
+      // Broadcast transcription to all participants in the meeting
+      this.io.to(meetingId).emit('transcription', {
+        id: transcription.id,
+        text: transcription.text,
+        language: transcription.language,
+        userId: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        timestamp: new Date().toISOString(),
+        segments: transcription.segments
+      });
+
+      // Save transcription to database
+      await this.db.createTranscription({
+        meetingId,
+        userId: user.id,
+        text: transcription.text,
+        language: transcription.language,
+        timestamp: new Date()
+      });
+
+    } catch (error) {
+      console.error('Error handling audio chunk:', error);
     }
   }
 }

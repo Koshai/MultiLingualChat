@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client'
 import { Message, Meeting, TypingUser, MeetingParticipant, MediaSettings, WebRTCConnection, AudioTranscription } from '@/types'
 import { useAuthStore } from './auth-store'
 import { WebRTCService } from '@/services/webrtc-service'
+import { AudioRecorder } from '@/services/audio-recorder'
 import toast from 'react-hot-toast'
 
 interface MeetingState {
@@ -20,6 +21,8 @@ interface MeetingState {
   remoteStreams: Map<string, MediaStream>
   localStream: MediaStream | null
   webrtcService: WebRTCService | null
+  audioRecorder: AudioRecorder | null
+  isTranscribing: boolean
   isLoading: boolean
   error: string | null
 }
@@ -49,6 +52,8 @@ interface MeetingActions {
   setupPeerConnection: (userId: string) => Promise<void>
   addRemoteStream: (userId: string, stream: MediaStream) => void
   removeRemoteStream: (userId: string) => void
+  startTranscription: () => Promise<void>
+  stopTranscription: () => void
 }
 
 export const useMeetingStore = create<MeetingState & MeetingActions>()(
@@ -71,6 +76,8 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     remoteStreams: new Map(),
     localStream: null,
     webrtcService: null,
+    audioRecorder: null,
+    isTranscribing: false,
     isLoading: false,
     error: null,
 
@@ -274,7 +281,12 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     },
 
     cleanup: () => {
-      const { socket, webrtcService } = get()
+      const { socket, webrtcService, audioRecorder } = get()
+
+      // Stop audio recording
+      if (audioRecorder) {
+        audioRecorder.stop()
+      }
 
       // Cleanup WebRTC
       if (webrtcService) {
@@ -292,6 +304,8 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
           typingUsers: [],
           transcriptions: [],
           webrtcService: null,
+          audioRecorder: null,
+          isTranscribing: false,
           localStream: null,
           remoteStreams: new Map()
         })
@@ -551,6 +565,70 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       const remoteStreams = new Map(get().remoteStreams)
       remoteStreams.delete(userId)
       set({ remoteStreams })
+    },
+
+    startTranscription: async () => {
+      const { socket, currentMeeting, localStream, audioRecorder } = get()
+
+      if (!socket || !currentMeeting) {
+        console.error('Cannot start transcription: socket or meeting not available')
+        return
+      }
+
+      if (!localStream) {
+        console.error('Cannot start transcription: no local stream available')
+        toast.error('No audio stream available for transcription')
+        return
+      }
+
+      if (audioRecorder && audioRecorder.isActive()) {
+        console.warn('Transcription already active')
+        return
+      }
+
+      try {
+        // Create audio-only stream from local stream
+        const audioTracks = localStream.getAudioTracks()
+        if (audioTracks.length === 0) {
+          throw new Error('No audio tracks available')
+        }
+
+        const audioOnlyStream = new MediaStream(audioTracks)
+
+        // Create audio recorder
+        const recorder = new AudioRecorder(socket, currentMeeting.id)
+
+        // Start recording with audio-only stream
+        await recorder.start(audioOnlyStream)
+
+        set({
+          audioRecorder: recorder,
+          isTranscribing: true
+        })
+
+        console.log('Audio transcription started')
+        toast.success('Live transcription started')
+      } catch (error) {
+        console.error('Failed to start transcription:', error)
+        toast.error('Failed to start transcription')
+      }
+    },
+
+    stopTranscription: () => {
+      const { audioRecorder } = get()
+
+      if (!audioRecorder) {
+        return
+      }
+
+      audioRecorder.stop()
+      set({
+        audioRecorder: null,
+        isTranscribing: false
+      })
+
+      console.log('Audio transcription stopped')
+      toast('Live transcription stopped')
     }
   }))
 )

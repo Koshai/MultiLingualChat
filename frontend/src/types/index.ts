@@ -212,12 +212,15 @@ export interface WebRTCConnection {
 
 export interface AudioTranscription {
   id: string
-  meetingId: string
+  meetingId?: string
   userId: string
+  username?: string
+  displayName?: string
   text: string
   language: string
   timestamp: string
-  confidence: number
+  confidence?: number
+  segments?: any[]
   translations?: TranscriptionTranslation[]
 }
 

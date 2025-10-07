@@ -20,6 +20,7 @@ export function MeetingRoom() {
     localStream,
     remoteStreams,
     isConnected,
+    isTranscribing,
     joinMeeting,
     leaveMeeting,
     sendMessage,
@@ -30,7 +31,9 @@ export function MeetingRoom() {
     stopTyping,
     setCurrentMeeting,
     initializeWebRTC,
-    setupPeerConnection
+    setupPeerConnection,
+    startTranscription,
+    stopTranscription
   } = useMeetingStore()
 
   const [newMessage, setNewMessage] = useState('')
@@ -77,7 +80,17 @@ export function MeetingRoom() {
 
     loadMeetingAndJoin()
 
+    // Handle browser close/refresh - clean up meeting
+    const handleBeforeUnload = () => {
+      if (currentMeeting) {
+        leaveMeeting()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
       if (currentMeeting) {
         leaveMeeting()
       }
@@ -359,7 +372,7 @@ export function MeetingRoom() {
                   <div key={transcription.id} className="p-3 bg-gray-700 rounded">
                     <div className="flex items-center space-x-2 mb-2">
                       <span className="text-blue-400 text-sm font-medium">
-                        Speaker {transcription.userId.slice(-4)}
+                        {transcription.displayName || transcription.username || `User ${transcription.userId.slice(-4)}`}
                       </span>
                       <span className="text-gray-400 text-xs">
                         {transcription.language.toUpperCase()}
@@ -427,6 +440,18 @@ export function MeetingRoom() {
           title={mediaSettings.screenSharing ? 'Stop sharing' : 'Share screen'}
         >
           {mediaSettings.screenSharing ? '🛑' : '🖥️'}
+        </button>
+
+        <button
+          onClick={() => isTranscribing ? stopTranscription() : startTranscription()}
+          className={`p-3 rounded-full ${
+            isTranscribing
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-white'
+          }`}
+          title={isTranscribing ? 'Stop transcription' : 'Start live transcription'}
+        >
+          {isTranscribing ? '⏸️' : '📝'}
         </button>
 
         <div className="flex-1"></div>

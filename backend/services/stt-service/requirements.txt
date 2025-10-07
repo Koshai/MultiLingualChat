@@ -1,0 +1,22 @@
+# STT Service Dependencies
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Speech-to-Text
+openai-whisper==20231117
+torch==2.1.2
+torchaudio==2.1.2
+
+# Audio processing
+numpy==1.26.3
+scipy==1.11.4
+
+# Logging
+structlog==24.1.0
+
+# Optional: GPU acceleration (uncomment if you have CUDA)
+# nvidia-cublas-cu11==11.10.3.66
+# nvidia-cudnn-cu11==8.5.0.96
