@@ -330,6 +330,9 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       if (socket && socket.connected && currentMeeting) {
         socket.emit('leave_meeting', { meetingId: currentMeeting.id })
       }
+
+      // Clear transcriptions when leaving
+      set({ transcriptions: [] })
     },
 
     sendMessage: (content: string, originalLanguage = 'en') => {

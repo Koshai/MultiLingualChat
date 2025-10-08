@@ -135,6 +135,14 @@ export class AudioRecorder {
         offset += chunk.length
       }
 
+      // Check if audio contains actual speech (not just silence)
+      const hasAudio = this.detectAudio(combinedAudio)
+      if (!hasAudio) {
+        console.log('Skipping silent audio chunk')
+        this.audioChunks = []
+        return
+      }
+
       // Convert to WAV
       const wavBlob = this.encodeWAV(combinedAudio, this.config.sampleRate)
 
@@ -161,6 +169,23 @@ export class AudioRecorder {
     } catch (error) {
       console.error('Failed to send audio chunk:', error)
     }
+  }
+
+  /**
+   * Detect if audio contains actual speech (not silence)
+   */
+  private detectAudio(samples: Float32Array): boolean {
+    // Calculate RMS (Root Mean Square) to detect audio level
+    let sum = 0
+    for (let i = 0; i < samples.length; i++) {
+      sum += samples[i] * samples[i]
+    }
+    const rms = Math.sqrt(sum / samples.length)
+
+    // Threshold for speech detection (adjust as needed)
+    const threshold = 0.01
+
+    return rms > threshold
   }
 
   /**
