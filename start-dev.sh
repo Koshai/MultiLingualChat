@@ -19,6 +19,11 @@ if [ ! -d "backend/services/stt-service" ]; then
     exit 1
 fi
 
+if [ ! -d "backend/services/translation-service" ]; then
+    echo "Error: Translation service directory not found"
+    exit 1
+fi
+
 # Function to cleanup on exit
 cleanup() {
     echo ""
@@ -29,21 +34,28 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-echo "[1/3] Starting Chat Service (Backend)..."
+echo "[1/4] Starting Chat Service (Backend)..."
 cd backend/services/chat-service && npm run dev &
 CHAT_PID=$!
 cd ../../..
 
 sleep 2
 
-echo "[2/3] Starting STT Service (Speech-to-Text)..."
+echo "[2/4] Starting STT Service (Speech-to-Text)..."
 cd backend/services/stt-service && python main.py &
 STT_PID=$!
 cd ../../..
 
 sleep 2
 
-echo "[3/3] Starting Frontend..."
+echo "[3/4] Starting Translation Service..."
+cd backend/services/translation-service && python main.py &
+TRANSLATION_PID=$!
+cd ../../..
+
+sleep 2
+
+echo "[4/4] Starting Frontend..."
 cd frontend && npm run dev &
 FRONTEND_PID=$!
 cd ..
@@ -53,9 +65,10 @@ echo "============================================"
 echo "All services started successfully!"
 echo "============================================"
 echo ""
-echo "Chat Service:    http://localhost:3001"
-echo "STT Service:     http://localhost:3004"
-echo "Frontend:        http://localhost:5173"
+echo "Chat Service:        http://localhost:3001"
+echo "STT Service:         http://localhost:3004"
+echo "Translation Service: http://localhost:3003"
+echo "Frontend:            http://localhost:5173"
 echo ""
 echo "Press Ctrl+C to stop all services..."
 

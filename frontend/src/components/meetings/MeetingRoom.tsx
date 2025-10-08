@@ -385,14 +385,15 @@ export function MeetingRoom() {
                         {formatTime(transcription.timestamp)}
                       </span>
                     </div>
-                    <p className="text-gray-300 text-sm">{transcription.text}</p>
-                    {transcription.translations && transcription.translations.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-gray-600">
-                        {transcription.translations.map((translation) => (
-                          <p key={translation.id} className="text-gray-300 text-sm mt-1">
-                            <span className="text-green-400">[{translation.targetLanguage.toUpperCase()}]</span> {translation.translatedText}
-                          </p>
-                        ))}
+
+                    {/* Translated English text (main display) */}
+                    <p className="text-white text-sm font-medium">{transcription.text}</p>
+
+                    {/* Original text if different from English */}
+                    {transcription.originalText && transcription.originalText !== transcription.text && (
+                      <div className="mt-2 p-2 bg-gray-800 rounded text-xs">
+                        <span className="text-gray-400">Original ({transcription.language}):</span>
+                        <p className="text-gray-300 mt-1">{transcription.originalText}</p>
                       </div>
                     )}
                   </div>

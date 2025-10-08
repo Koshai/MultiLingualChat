@@ -216,8 +216,9 @@ export interface AudioTranscription {
   userId: string
   username?: string
   displayName?: string
-  text: string
-  language: string
+  text: string // Translated text (usually English)
+  originalText?: string // Original transcribed text
+  language: string // Original language
   timestamp: string
   confidence?: number
   segments?: any[]

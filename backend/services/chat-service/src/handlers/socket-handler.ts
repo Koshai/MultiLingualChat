@@ -657,18 +657,57 @@ export class SocketHandler {
 
       const transcription = await response.json();
 
-      console.log(`Transcription received: "${transcription.text}"`);
+      console.log(`Transcription received: "${transcription.text}" (${transcription.language})`);
+
+      // Translate to English if not already English
+      let translatedText = transcription.text;
+      const translations: any[] = [];
+
+      if (transcription.language !== 'en' && transcription.language !== 'english') {
+        try {
+          const translationUrl = process.env.TRANSLATION_SERVICE_URL || 'http://localhost:3003';
+          const translationResponse = await fetch(`${translationUrl}/api/v1/translation/translate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              text: transcription.text,
+              source_language: transcription.language,
+              target_language: 'en'
+            })
+          });
+
+          if (translationResponse.ok) {
+            const translationData = await translationResponse.json();
+            translatedText = translationData.translated_text;
+            translations.push({
+              id: translationData.id,
+              targetLanguage: 'en',
+              translatedText: translationData.translated_text,
+              confidence: translationData.confidence
+            });
+            console.log(`Translated to English: "${translatedText}"`);
+          } else {
+            console.warn(`Translation failed: ${translationResponse.status}`);
+          }
+        } catch (translationError) {
+          console.error('Translation error:', translationError);
+        }
+      }
 
       // Broadcast transcription to all participants in the meeting
       this.io.to(meetingId).emit('transcription', {
         id: transcription.id,
-        text: transcription.text,
-        language: transcription.language,
+        text: translatedText, // Show translated English text
+        language: transcription.language, // Original language
         userId: user.id,
         username: user.username,
         displayName: user.displayName,
         timestamp: new Date().toISOString(),
-        segments: transcription.segments
+        segments: transcription.segments,
+        translations: translations,
+        originalText: transcription.text // Keep original for reference
       });
 
       // Save transcription to database
