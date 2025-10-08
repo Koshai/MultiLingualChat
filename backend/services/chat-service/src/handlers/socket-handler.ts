@@ -627,12 +627,12 @@ export class SocketHandler {
     }
   }
 
-  private async handleAudioChunk(socket: Socket, data: { meetingId: string; audioData: string; timestamp: number; format: string }): Promise<void> {
+  private async handleAudioChunk(socket: Socket, data: { meetingId: string; audioData: string; timestamp: number; format: string; language?: string | null }): Promise<void> {
     try {
       const user = (socket as any).user;
-      const { meetingId, audioData, timestamp, format } = data;
+      const { meetingId, audioData, timestamp, format, language } = data;
 
-      console.log(`Audio chunk received from ${user.username} for meeting ${meetingId}`);
+      console.log(`Audio chunk received from ${user.username} for meeting ${meetingId} (lang: ${language || 'auto-detect'})`);
 
       // Forward audio to STT service
       const sttUrl = process.env.STT_SERVICE_URL || 'http://localhost:3004';
@@ -644,7 +644,7 @@ export class SocketHandler {
         },
         body: JSON.stringify({
           audio_data: audioData,
-          language: 'en', // TODO: Get from user preferences
+          language: language || null, // null = auto-detect
           meeting_id: meetingId,
           user_id: user.id
         })

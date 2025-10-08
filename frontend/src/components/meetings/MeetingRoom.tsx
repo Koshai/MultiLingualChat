@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { VideoTile } from './VideoTile'
 import { apiService } from '@/services/api'
+import { SUPPORTED_LANGUAGES } from '@/types'
 import toast from 'react-hot-toast'
 
 export function MeetingRoom() {
@@ -21,6 +22,7 @@ export function MeetingRoom() {
     remoteStreams,
     isConnected,
     isTranscribing,
+    transcriptionLanguage,
     joinMeeting,
     leaveMeeting,
     sendMessage,
@@ -30,6 +32,7 @@ export function MeetingRoom() {
     startTyping,
     stopTyping,
     setCurrentMeeting,
+    setTranscriptionLanguage,
     initializeWebRTC,
     setupPeerConnection,
     startTranscription,
@@ -40,6 +43,7 @@ export function MeetingRoom() {
   const [isTyping, setIsTyping] = useState(false)
   const [showChat, setShowChat] = useState(true)
   const [showTranscriptions, setShowTranscriptions] = useState(false)
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout>()
@@ -453,6 +457,62 @@ export function MeetingRoom() {
         >
           {isTranscribing ? '⏸️' : '📝'}
         </button>
+
+        {/* Language Selector for Transcription */}
+        <div className="relative">
+          <button
+            onClick={() => setShowLanguageSelector(!showLanguageSelector)}
+            className="p-3 rounded-full bg-gray-700 hover:bg-gray-600 text-white"
+            title="Transcription language"
+          >
+            🌐
+          </button>
+
+          {showLanguageSelector && (
+            <div className="absolute bottom-full mb-2 right-0 w-56 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-96 overflow-y-auto">
+              <div className="p-2">
+                <div className="text-xs text-gray-400 px-2 py-1 mb-1">Transcription Language</div>
+
+                {/* Auto-detect option */}
+                <button
+                  onClick={() => {
+                    setTranscriptionLanguage(null)
+                    setShowLanguageSelector(false)
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded text-sm ${
+                    transcriptionLanguage === null
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  <span className="mr-2">🔍</span>
+                  Auto-detect
+                </button>
+
+                <div className="border-t border-gray-700 my-1"></div>
+
+                {/* Language options */}
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => {
+                      setTranscriptionLanguage(lang.code)
+                      setShowLanguageSelector(false)
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded text-sm ${
+                      transcriptionLanguage === lang.code
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    <span className="mr-2">{lang.flag}</span>
+                    {lang.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex-1"></div>
 

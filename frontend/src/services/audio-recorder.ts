@@ -4,6 +4,7 @@ export interface AudioRecorderConfig {
   sampleRate?: number
   channelCount?: number
   chunkDurationMs?: number
+  language?: string | null // null = auto-detect
 }
 
 export class AudioRecorder {
@@ -12,19 +13,28 @@ export class AudioRecorder {
   private scriptProcessor: ScriptProcessorNode | null = null
   private socket: Socket
   private meetingId: string
+  private language: string | null
   private isRecording: boolean = false
-  private config: Required<AudioRecorderConfig>
+  private config: Required<Omit<AudioRecorderConfig, 'language'>>
   private audioChunks: Float32Array[] = []
   private chunkTimer: NodeJS.Timeout | null = null
 
   constructor(socket: Socket, meetingId: string, config?: AudioRecorderConfig) {
     this.socket = socket
     this.meetingId = meetingId
+    this.language = config?.language || null
     this.config = {
       sampleRate: config?.sampleRate || 16000,
       channelCount: config?.channelCount || 1,
       chunkDurationMs: config?.chunkDurationMs || 3000 // 3 seconds
     }
+  }
+
+  /**
+   * Update transcription language (null = auto-detect)
+   */
+  setLanguage(language: string | null): void {
+    this.language = language
   }
 
   /**
@@ -154,7 +164,8 @@ export class AudioRecorder {
         meetingId: this.meetingId,
         audioData: base64Audio,
         timestamp: Date.now(),
-        format: 'wav'
+        format: 'wav',
+        language: this.language // null = auto-detect
       })
 
       console.log('Audio chunk sent', {

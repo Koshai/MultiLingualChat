@@ -23,6 +23,7 @@ interface MeetingState {
   webrtcService: WebRTCService | null
   audioRecorder: AudioRecorder | null
   isTranscribing: boolean
+  transcriptionLanguage: string | null // null = auto-detect
   isLoading: boolean
   error: string | null
 }
@@ -48,6 +49,7 @@ interface MeetingActions {
   toggleScreenShare: () => void
   addTranscription: (transcription: AudioTranscription) => void
   setError: (error: string | null) => void
+  setTranscriptionLanguage: (language: string | null) => void
   initializeWebRTC: () => Promise<void>
   setupPeerConnection: (userId: string) => Promise<void>
   addRemoteStream: (userId: string, stream: MediaStream) => void
@@ -78,6 +80,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     webrtcService: null,
     audioRecorder: null,
     isTranscribing: false,
+    transcriptionLanguage: null, // null = auto-detect
     isLoading: false,
     error: null,
 
@@ -506,6 +509,21 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       set({ error })
     },
 
+    setTranscriptionLanguage: (language: string | null) => {
+      const { audioRecorder } = get()
+
+      set({ transcriptionLanguage: language })
+
+      // Update language in active recorder
+      if (audioRecorder && audioRecorder.isActive()) {
+        audioRecorder.setLanguage(language)
+      }
+
+      const langText = language || 'auto-detect'
+      console.log('Transcription language set to:', langText)
+      toast.success(`Transcription language: ${langText}`)
+    },
+
     // WebRTC Methods
     initializeWebRTC: async () => {
       const { socket } = get()
@@ -571,7 +589,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     },
 
     startTranscription: async () => {
-      const { socket, currentMeeting, localStream, audioRecorder } = get()
+      const { socket, currentMeeting, localStream, audioRecorder, transcriptionLanguage } = get()
 
       if (!socket || !currentMeeting) {
         console.error('Cannot start transcription: socket or meeting not available')
@@ -598,8 +616,10 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
 
         const audioOnlyStream = new MediaStream(audioTracks)
 
-        // Create audio recorder
-        const recorder = new AudioRecorder(socket, currentMeeting.id)
+        // Create audio recorder with language setting
+        const recorder = new AudioRecorder(socket, currentMeeting.id, {
+          language: transcriptionLanguage
+        })
 
         // Start recording with audio-only stream
         await recorder.start(audioOnlyStream)
@@ -609,8 +629,9 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
           isTranscribing: true
         })
 
-        console.log('Audio transcription started')
-        toast.success('Live transcription started')
+        const langText = transcriptionLanguage || 'auto-detect'
+        console.log(`Audio transcription started (language: ${langText})`)
+        toast.success(`Live transcription started (${langText})`)
       } catch (error) {
         console.error('Failed to start transcription:', error)
         toast.error('Failed to start transcription')
