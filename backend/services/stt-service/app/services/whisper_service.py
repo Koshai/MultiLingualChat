@@ -85,10 +85,17 @@ class WhisperService:
                 language=request.language
             )
 
-            # Prepare transcription options
+            # Prepare transcription options with enhanced settings
             options = {
                 "fp16": False if self.device == "cpu" else True,
-                "verbose": False
+                "verbose": False,
+                # Enhanced decode options for better accuracy
+                "temperature": 0.0,  # More deterministic, less creative
+                "compression_ratio_threshold": 2.4,  # Reject low-quality transcriptions
+                "logprob_threshold": -1.0,  # Filter low-confidence words
+                "no_speech_threshold": 0.6,  # Better silence detection
+                "condition_on_previous_text": True,  # Use context from previous segments
+                "initial_prompt": None,  # Can add context-specific prompts if needed
             }
 
             if request.language:

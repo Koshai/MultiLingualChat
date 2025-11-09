@@ -26,7 +26,7 @@ export class AudioRecorder {
     this.config = {
       sampleRate: config?.sampleRate || 16000,
       channelCount: config?.channelCount || 1,
-      chunkDurationMs: config?.chunkDurationMs || 3000 // 3 seconds
+      chunkDurationMs: config?.chunkDurationMs || 5000 // 5 seconds for better accuracy
     }
   }
 

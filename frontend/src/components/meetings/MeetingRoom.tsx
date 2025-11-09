@@ -389,8 +389,8 @@ export function MeetingRoom() {
                     {/* Translated English text (main display) */}
                     <p className="text-white text-sm font-medium">{transcription.text}</p>
 
-                    {/* Original text if different from English */}
-                    {transcription.originalText && transcription.originalText !== transcription.text && (
+                    {/* Original text - always show if available */}
+                    {transcription.originalText && (
                       <div className="mt-2 p-2 bg-gray-800 rounded text-xs">
                         <span className="text-gray-400">Original ({transcription.language}):</span>
                         <p className="text-gray-300 mt-1">{transcription.originalText}</p>

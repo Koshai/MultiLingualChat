@@ -16,37 +16,45 @@ from app.models.translation import (
     BatchTranslationResponse
 )
 from app.services.redis_service import RedisService
+from app.providers import AzureTranslatorProvider, ArgosTranslateProvider, BaseTranslationProvider
 
 logger = structlog.get_logger(__name__)
 
 class TranslationService:
     def __init__(self):
-        self.client: Optional[httpx.AsyncClient] = None
         self.redis_service = RedisService()
         self.supported_languages: List[SupportedLanguage] = []
         self.start_time = time.time()
 
-    async def initialize(self) -> None:
-        """Initialize the translation service."""
-        try:
-            # Initialize HTTP client
-            self.client = httpx.AsyncClient(
-                base_url=settings.LIBRETRANSLATE_URL,
-                timeout=settings.TRANSLATION_TIMEOUT,
-                headers={
-                    "Content-Type": "application/json"
-                }
-            )
+        # Multi-provider setup with fallback
+        self.primary_provider: Optional[BaseTranslationProvider] = None
+        self.fallback_provider: Optional[BaseTranslationProvider] = None
+        self.providers: List[BaseTranslationProvider] = []
 
-            # Connect to Redis
-            await self.redis_service.connect()
+    async def initialize(self) -> None:
+        """Initialize the translation service with providers."""
+        try:
+            # Connect to Redis (optional - service works without it)
+            try:
+                await self.redis_service.connect()
+                logger.info("✅ Redis connected for caching")
+            except Exception as redis_error:
+                logger.warning(
+                    "⚠️ Redis connection failed - caching disabled",
+                    error=str(redis_error)
+                )
+
+            # Initialize providers based on configuration
+            await self._initialize_providers()
 
             # Load supported languages
             await self._load_supported_languages()
 
+            provider_names = [p.name for p in self.providers if p.initialized]
             logger.info(
                 "🌐 Translation service initialized",
-                libretranslate_url=settings.LIBRETRANSLATE_URL,
+                providers=provider_names,
+                primary=self.primary_provider.name if self.primary_provider else None,
                 supported_languages=len(self.supported_languages)
             )
 
@@ -54,62 +62,119 @@ class TranslationService:
             logger.error("❌ Failed to initialize translation service", error=str(e))
             raise
 
+    async def _initialize_providers(self) -> None:
+        """Initialize translation providers with fallback chain."""
+
+        # Initialize Azure Translator (primary if configured)
+        if settings.AZURE_TRANSLATOR_KEY and settings.AZURE_TRANSLATOR_KEY != "":
+            azure_provider = AzureTranslatorProvider(
+                api_key=settings.AZURE_TRANSLATOR_KEY,
+                region=settings.AZURE_TRANSLATOR_REGION or "global"
+            )
+            await azure_provider.initialize()
+
+            if azure_provider.initialized:
+                self.primary_provider = azure_provider
+                self.providers.append(azure_provider)
+                logger.info("✅ Azure Translator set as primary provider")
+
+        # Initialize Argos Translate (fallback or primary if no Azure)
+        try:
+            argos_provider = ArgosTranslateProvider()
+            await argos_provider.initialize()
+
+            if argos_provider.initialized:
+                if not self.primary_provider:
+                    # Use Argos as primary if no other provider available
+                    self.primary_provider = argos_provider
+                    logger.info("✅ Argos Translate set as primary provider")
+                else:
+                    # Use Argos as fallback
+                    self.fallback_provider = argos_provider
+                    logger.info("✅ Argos Translate set as fallback provider")
+
+                self.providers.append(argos_provider)
+        except Exception as e:
+            logger.warning("⚠️ Argos Translate initialization failed", error=str(e))
+
+        if not self.providers:
+            raise RuntimeError("No translation providers available")
+
     async def cleanup(self) -> None:
         """Cleanup resources."""
-        if self.client:
-            await self.client.aclose()
+        # Cleanup all providers
+        for provider in self.providers:
+            try:
+                await provider.cleanup()
+            except Exception as e:
+                logger.warning(f"Error cleaning up {provider.name}", error=str(e))
+
+        # Disconnect Redis
         await self.redis_service.disconnect()
 
-    @retry(
-        stop=stop_after_attempt(settings.RETRY_ATTEMPTS),
-        wait=wait_exponential(multiplier=1, min=4, max=10)
-    )
     async def _make_translation_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Make translation request to LibreTranslate with retry logic."""
-        if not self.client:
-            raise RuntimeError("Translation client not initialized")
+        """Make translation request using provider chain with fallback."""
+        source_lang = data["source"]
+        target_lang = data["target"]
+        text = data["q"]
 
-        headers = {}
-        if settings.LIBRETRANSLATE_API_KEY:
-            headers["Authorization"] = f"Bearer {settings.LIBRETRANSLATE_API_KEY}"
+        # Try primary provider first
+        if self.primary_provider and self.primary_provider.initialized:
+            try:
+                result = await self.primary_provider.translate(text, source_lang, target_lang)
+                logger.debug(
+                    f"✅ Translation via {self.primary_provider.name}",
+                    provider=self.primary_provider.name
+                )
+                return result
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Primary provider ({self.primary_provider.name}) failed, trying fallback",
+                    error=str(e)
+                )
 
-        response = await self.client.post(
-            "/translate",
-            json=data,
-            headers=headers
-        )
-        response.raise_for_status()
-        return response.json()
+                # Try fallback provider
+                if self.fallback_provider and self.fallback_provider.initialized:
+                    try:
+                        result = await self.fallback_provider.translate(text, source_lang, target_lang)
+                        logger.info(
+                            f"✅ Translation via fallback ({self.fallback_provider.name})",
+                            provider=self.fallback_provider.name
+                        )
+                        return result
+                    except Exception as fallback_error:
+                        logger.error(
+                            "❌ Fallback provider also failed",
+                            error=str(fallback_error)
+                        )
+                        raise
+                else:
+                    raise  # No fallback available, re-raise primary error
+
+        # Should not reach here if providers are initialized
+        raise RuntimeError("No translation provider available")
 
     async def _load_supported_languages(self) -> None:
-        """Load supported languages from LibreTranslate."""
-        try:
-            if not self.client:
-                raise RuntimeError("HTTP client not initialized")
+        """Load supported languages from all providers."""
+        # Combine languages from all providers
+        all_languages = set()
 
-            response = await self.client.get("/languages")
-            response.raise_for_status()
-            languages_data = response.json()
+        for provider in self.providers:
+            if provider.initialized:
+                provider_langs = await provider.get_supported_languages()
+                all_languages.update(provider_langs)
 
-            self.supported_languages = [
-                SupportedLanguage(code=lang["code"], name=lang["name"])
-                for lang in languages_data
-                if lang["code"] in settings.SUPPORTED_LANGUAGES
-            ]
+        # Convert to SupportedLanguage objects
+        self.supported_languages = [
+            SupportedLanguage(code=code, name=code.upper())
+            for code in sorted(all_languages)
+        ]
 
-            logger.info(
-                "📋 Loaded supported languages",
-                count=len(self.supported_languages),
-                languages=[lang.code for lang in self.supported_languages]
-            )
-
-        except Exception as e:
-            logger.warning("⚠️ Failed to load languages from LibreTranslate", error=str(e))
-            # Fallback to configured languages
-            self.supported_languages = [
-                SupportedLanguage(code=code, name=code.upper())
-                for code in settings.SUPPORTED_LANGUAGES
-            ]
+        logger.info(
+            "📋 Loaded supported languages",
+            count=len(self.supported_languages),
+            languages=[lang.code for lang in self.supported_languages]
+        )
 
     async def get_supported_languages(self) -> List[SupportedLanguage]:
         """Get list of supported languages."""
@@ -340,27 +405,39 @@ class TranslationService:
         return stats
 
     async def health_check(self) -> Dict[str, Any]:
-        """Perform health check."""
+        """Perform health check on all providers."""
         try:
-            # Check LibreTranslate
-            if self.client:
-                response = await self.client.get("/", timeout=5)
-                libretranslate_status = "healthy" if response.status_code == 200 else "unhealthy"
+            # Check all providers
+            provider_statuses = {}
+            for provider in self.providers:
+                health = await provider.health_check()
+                provider_statuses[provider.name] = health["status"]
+
+            # Check Redis (optional)
+            redis_status = "healthy" if self.redis_service.connected else "disconnected"
+
+            # Determine overall status
+            if self.primary_provider and self.primary_provider.initialized:
+                primary_health = provider_statuses.get(self.primary_provider.name)
+                if primary_health == "healthy":
+                    overall_status = "healthy"
+                elif self.fallback_provider and self.fallback_provider.initialized:
+                    overall_status = "degraded"  # Primary down but fallback available
+                else:
+                    overall_status = "unhealthy"
+            elif self.fallback_provider and self.fallback_provider.initialized:
+                overall_status = "degraded"  # Only fallback available
             else:
-                libretranslate_status = "not_initialized"
-
-            # Check Redis
-            redis_status = "healthy" if self.redis_service.connected else "unhealthy"
-
-            overall_status = "healthy" if all([
-                libretranslate_status == "healthy",
-                redis_status == "healthy"
-            ]) else "unhealthy"
+                overall_status = "unhealthy"
 
             return {
                 "status": overall_status,
+                "providers": {
+                    "primary": self.primary_provider.name if self.primary_provider else None,
+                    "fallback": self.fallback_provider.name if self.fallback_provider else None,
+                    "statuses": provider_statuses
+                },
                 "dependencies": {
-                    "libretranslate": libretranslate_status,
                     "redis": redis_status
                 },
                 "uptime_seconds": time.time() - self.start_time,
@@ -372,9 +449,5 @@ class TranslationService:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "dependencies": {
-                    "libretranslate": "unknown",
-                    "redis": "unknown"
-                },
                 "uptime_seconds": time.time() - self.start_time
             }

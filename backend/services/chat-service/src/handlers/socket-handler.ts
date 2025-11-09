@@ -666,7 +666,7 @@ export class SocketHandler {
       if (transcription.language !== 'en' && transcription.language !== 'english') {
         try {
           const translationUrl = process.env.TRANSLATION_SERVICE_URL || 'http://localhost:3003';
-          const translationResponse = await fetch(`${translationUrl}/api/v1/translation/translate`, {
+          const translationResponse = await fetch(`${translationUrl}/api/v1/translate`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'

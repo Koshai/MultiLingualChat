@@ -1,6 +1,11 @@
 from pydantic_settings import BaseSettings
 from typing import List
 import os
+from pathlib import Path
+
+# Get the root directory (3 levels up from this file)
+ROOT_DIR = Path(__file__).parent.parent.parent.parent.parent.parent
+ENV_FILE = ROOT_DIR / ".env"
 
 class Settings(BaseSettings):
     # Basic app settings
@@ -9,9 +14,28 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     PORT: int = int(os.getenv("TRANSLATION_SERVICE_PORT", 3003))
 
-    # LibreTranslate settings
+    # Translation Provider Selection
+    TRANSLATION_PROVIDER: str = os.getenv("TRANSLATION_PROVIDER", "argos")  # argos, google, deepl, azure
+
+    # Argos Translate (Local/Free) - currently in use
+    # No configuration needed - uses installed packages
+
+    # LibreTranslate settings (Alternative local option)
     LIBRETRANSLATE_URL: str = os.getenv("LIBRETRANSLATE_URL", "http://localhost:5000")
     LIBRETRANSLATE_API_KEY: str = os.getenv("LIBRETRANSLATE_API_KEY", "")
+
+    # Cloud Provider Configuration (Commercial - for production)
+    # Google Cloud Translation
+    GOOGLE_CLOUD_PROJECT_ID: str = os.getenv("GOOGLE_CLOUD_PROJECT_ID", "")
+    GOOGLE_CLOUD_CREDENTIALS_PATH: str = os.getenv("GOOGLE_CLOUD_CREDENTIALS_PATH", "")
+
+    # DeepL API (Best quality for supported languages)
+    DEEPL_API_KEY: str = os.getenv("DEEPL_API_KEY", "")
+    DEEPL_API_FREE: bool = os.getenv("DEEPL_API_FREE", "true").lower() == "true"
+
+    # Azure Translator
+    AZURE_TRANSLATOR_KEY: str = os.getenv("AZURE_TRANSLATOR_KEY", "")
+    AZURE_TRANSLATOR_REGION: str = os.getenv("AZURE_TRANSLATOR_REGION", "")
 
     # Redis settings
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -39,7 +63,7 @@ class Settings(BaseSettings):
     # Supported languages
     SUPPORTED_LANGUAGES: List[str] = [
         "en", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko",
-        "ar", "hi", "tr", "pl", "nl", "sv", "da", "no", "fi"
+        "ar", "hi", "bn", "tr", "pl", "nl", "sv", "da", "no", "fi"
     ]
 
     # Rate limiting
@@ -51,7 +75,8 @@ class Settings(BaseSettings):
     METRICS_PORT: int = int(os.getenv("METRICS_PORT", 8080))
 
     class Config:
-        env_file = ".env"
+        env_file = str(ENV_FILE)
         case_sensitive = True
+        extra = "ignore"  # Ignore extra env vars from root .env
 
 settings = Settings()
