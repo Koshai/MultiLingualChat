@@ -32,14 +32,14 @@ class ArgosTranslateProvider(BaseTranslationProvider):
 
             self.initialized = True
             logger.info(
-                "✅ Argos Translate initialized",
+                "Argos Translate initialized",
                 installed_packages=len(self.installed_packages),
                 language_pairs=len(self.supported_pairs)
             )
 
         except Exception as e:
             self.initialized = False
-            logger.error("❌ Failed to initialize Argos Translate", error=str(e))
+            logger.error("Failed to initialize Argos Translate", error=str(e))
             raise
 
     async def translate(

@@ -35,7 +35,7 @@ class AzureTranslatorProvider(BaseTranslationProvider):
         """Initialize Azure Translator client."""
         try:
             if not self.api_key or self.api_key == "":
-                logger.warning("⚠️ Azure Translator API key not configured")
+                logger.warning("Azure Translator API key not configured")
                 self.initialized = False
                 return
 
@@ -48,17 +48,17 @@ class AzureTranslatorProvider(BaseTranslationProvider):
             if test_result:
                 self.initialized = True
                 logger.info(
-                    "✅ Azure Translator initialized",
+                    "Azure Translator initialized",
                     region=self.region,
                     supported_languages=len(self.supported_langs)
                 )
             else:
                 self.initialized = False
-                logger.warning("⚠️ Azure Translator test failed - invalid API key?")
+                logger.warning("Azure Translator test failed - invalid API key?")
 
         except Exception as e:
             self.initialized = False
-            logger.error("❌ Failed to initialize Azure Translator", error=str(e))
+            logger.error("Failed to initialize Azure Translator", error=str(e))
 
     async def _test_connection(self) -> bool:
         """Test Azure Translator connection."""

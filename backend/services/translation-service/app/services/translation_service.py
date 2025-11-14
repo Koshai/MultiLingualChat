@@ -37,10 +37,10 @@ class TranslationService:
             # Connect to Redis (optional - service works without it)
             try:
                 await self.redis_service.connect()
-                logger.info("✅ Redis connected for caching")
+                logger.info("Redis connected for caching")
             except Exception as redis_error:
                 logger.warning(
-                    "⚠️ Redis connection failed - caching disabled",
+                    "Redis connection failed - caching disabled",
                     error=str(redis_error)
                 )
 
@@ -52,14 +52,14 @@ class TranslationService:
 
             provider_names = [p.name for p in self.providers if p.initialized]
             logger.info(
-                "🌐 Translation service initialized",
+                "Translation service initialized",
                 providers=provider_names,
                 primary=self.primary_provider.name if self.primary_provider else None,
                 supported_languages=len(self.supported_languages)
             )
 
         except Exception as e:
-            logger.error("❌ Failed to initialize translation service", error=str(e))
+            logger.error("Failed to initialize translation service", error=str(e))
             raise
 
     async def _initialize_providers(self) -> None:
@@ -76,7 +76,7 @@ class TranslationService:
             if azure_provider.initialized:
                 self.primary_provider = azure_provider
                 self.providers.append(azure_provider)
-                logger.info("✅ Azure Translator set as primary provider")
+                logger.info("Azure Translator set as primary provider")
 
         # Initialize Argos Translate (fallback or primary if no Azure)
         try:
@@ -87,15 +87,15 @@ class TranslationService:
                 if not self.primary_provider:
                     # Use Argos as primary if no other provider available
                     self.primary_provider = argos_provider
-                    logger.info("✅ Argos Translate set as primary provider")
+                    logger.info("Argos Translate set as primary provider")
                 else:
                     # Use Argos as fallback
                     self.fallback_provider = argos_provider
-                    logger.info("✅ Argos Translate set as fallback provider")
+                    logger.info("Argos Translate set as fallback provider")
 
                 self.providers.append(argos_provider)
         except Exception as e:
-            logger.warning("⚠️ Argos Translate initialization failed", error=str(e))
+            logger.warning("Argos Translate initialization failed", error=str(e))
 
         if not self.providers:
             raise RuntimeError("No translation providers available")
@@ -123,13 +123,13 @@ class TranslationService:
             try:
                 result = await self.primary_provider.translate(text, source_lang, target_lang)
                 logger.debug(
-                    f"✅ Translation via {self.primary_provider.name}",
+                    f"Translation via {self.primary_provider.name}",
                     provider=self.primary_provider.name
                 )
                 return result
             except Exception as e:
                 logger.warning(
-                    f"⚠️ Primary provider ({self.primary_provider.name}) failed, trying fallback",
+                    f"Primary provider ({self.primary_provider.name}) failed, trying fallback",
                     error=str(e)
                 )
 
@@ -138,13 +138,13 @@ class TranslationService:
                     try:
                         result = await self.fallback_provider.translate(text, source_lang, target_lang)
                         logger.info(
-                            f"✅ Translation via fallback ({self.fallback_provider.name})",
+                            f"Translation via fallback ({self.fallback_provider.name})",
                             provider=self.fallback_provider.name
                         )
                         return result
                     except Exception as fallback_error:
                         logger.error(
-                            "❌ Fallback provider also failed",
+                            "Fallback provider also failed",
                             error=str(fallback_error)
                         )
                         raise
@@ -171,7 +171,7 @@ class TranslationService:
         ]
 
         logger.info(
-            "📋 Loaded supported languages",
+            "Loaded supported languages",
             count=len(self.supported_languages),
             languages=[lang.code for lang in self.supported_languages]
         )
@@ -269,7 +269,7 @@ class TranslationService:
             )
 
             logger.info(
-                "✅ Translation completed",
+                "Translation completed",
                 source_lang=request.source_language,
                 target_lang=request.target_language,
                 processing_time_ms=processing_time,
@@ -301,7 +301,7 @@ class TranslationService:
             )
 
             logger.error(
-                "❌ Translation failed",
+                "Translation failed",
                 error=str(e),
                 source_lang=request.source_language,
                 target_lang=request.target_language,
@@ -383,7 +383,7 @@ class TranslationService:
             )
 
             logger.info(
-                "📦 Batch translation completed",
+                "Batch translation completed",
                 batch_id=batch_id,
                 total_requests=len(batch_request.requests),
                 completed=completed,
@@ -394,7 +394,7 @@ class TranslationService:
             return batch_response
 
         except Exception as e:
-            logger.error("❌ Batch translation failed", error=str(e), batch_id=batch_id)
+            logger.error("Batch translation failed", error=str(e), batch_id=batch_id)
             raise
 
     async def get_translation_stats(self) -> Dict[str, Any]:
@@ -445,7 +445,7 @@ class TranslationService:
             }
 
         except Exception as e:
-            logger.error("❌ Health check failed", error=str(e))
+            logger.error("Health check failed", error=str(e))
             return {
                 "status": "unhealthy",
                 "error": str(e),
