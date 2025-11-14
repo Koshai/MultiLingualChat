@@ -4,7 +4,7 @@ import base64
 import structlog
 
 from app.models.transcription import TranscriptionRequest, TranscriptionResponse
-from app.services.whisper_service import whisper_service
+from app.services.stt_service import stt_service
 
 router = APIRouter()
 logger = structlog.get_logger(__name__)
@@ -13,19 +13,42 @@ logger = structlog.get_logger(__name__)
 @router.post("/transcribe", response_model=TranscriptionResponse)
 async def transcribe_audio(request: TranscriptionRequest):
     """
-    Transcribe audio data using Whisper.
+    Transcribe audio data using Azure Speech or Whisper (fallback).
 
     Accepts base64-encoded audio data and returns transcribed text.
     """
+    logger.info(
+        "Transcription request received",
+        language=request.language,
+        meeting_id=request.meeting_id,
+        user_id=request.user_id,
+        audio_data_length=len(request.audio_data) if request.audio_data else 0
+    )
+
     try:
-        result = await whisper_service.transcribe(request)
+        result = await stt_service.transcribe(request)
+
+        logger.info(
+            "Transcription successful",
+            text_length=len(result.text) if result.text else 0,
+            language=result.language,
+            processing_time_ms=result.processing_time_ms
+        )
+
         return result
     except ValueError as e:
-        logger.error("Invalid audio format", error=str(e))
+        logger.error("Invalid audio format", error=str(e), exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error("Transcription error", error=str(e))
-        raise HTTPException(status_code=500, detail="Transcription failed")
+        logger.error(
+            "Transcription error - FULL DETAILS",
+            error=str(e),
+            error_type=type(e).__name__,
+            language=request.language,
+            meeting_id=request.meeting_id,
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
 
 @router.post("/transcribe/file", response_model=TranscriptionResponse)
@@ -56,7 +79,7 @@ async def transcribe_audio_file(
         )
 
         # Transcribe
-        result = await whisper_service.transcribe(request)
+        result = await stt_service.transcribe(request)
         return result
 
     except ValueError as e:

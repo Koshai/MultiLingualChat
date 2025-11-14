@@ -1,5 +1,12 @@
 from pydantic_settings import BaseSettings
 from typing import Literal
+import os
+from pathlib import Path
+
+# Get the root directory (load from root .env)
+# Path: config.py -> core -> app -> stt-service -> services -> backend -> MultilingualChat
+ROOT_DIR = Path(__file__).parent.parent.parent.parent.parent.parent
+ENV_FILE = ROOT_DIR / ".env"
 
 
 class Settings(BaseSettings):
@@ -11,7 +18,7 @@ class Settings(BaseSettings):
     PORT: int = 3004
 
     # STT Provider Selection
-    STT_PROVIDER: Literal["whisper", "google", "azure", "aws"] = "whisper"
+    STT_PROVIDER: Literal["whisper", "google", "azure_speech", "aws"] = "azure_speech"
 
     # Whisper Model Configuration (Local/Free)
     WHISPER_MODEL: Literal["tiny", "base", "small", "medium", "large"] = "medium"
@@ -48,8 +55,9 @@ class Settings(BaseSettings):
     ]
 
     class Config:
-        env_file = ".env"
+        env_file = str(ENV_FILE)
         case_sensitive = True
+        extra = "ignore"  # Ignore extra env vars from root .env
 
 
 settings = Settings()

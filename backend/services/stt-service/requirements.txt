@@ -10,6 +10,9 @@ openai-whisper==20231117
 torch==2.1.2
 torchaudio==2.1.2
 
+# Azure Speech Services (Cloud STT)
+azure-cognitiveservices-speech==1.38.0
+
 # Audio processing
 numpy==1.26.3
 scipy==1.11.4

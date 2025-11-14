@@ -1,14 +1,13 @@
 from fastapi import APIRouter
-from app.models.transcription import HealthResponse
-from app.services.whisper_service import whisper_service
+from app.services.stt_service import stt_service
 
 router = APIRouter()
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get("/health")
 async def health_check():
     """Check STT service health status."""
-    health = await whisper_service.get_health()
+    health = await stt_service.get_health()
     return health
 
 
@@ -18,5 +17,5 @@ async def root():
     return {
         "service": "Speech-to-Text Service",
         "status": "running",
-        "model": whisper_service.model_name
+        "providers": "Azure Speech (primary), Whisper (fallback)"
     }
