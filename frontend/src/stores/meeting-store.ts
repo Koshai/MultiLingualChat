@@ -216,6 +216,47 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         get().addTranscription(transcription)
       })
 
+      socket.on('transcription_translation', (data: { transcriptionId: string, targetLanguage: string, translatedText: string, confidence?: number, timestamp: string }) => {
+        console.log('🌐 Transcription translation received:', data)
+        console.log('📋 Current transcriptions count:', get().transcriptions.length)
+        const { transcriptionId, targetLanguage, translatedText, confidence } = data
+
+        // Update the transcription with the translation
+        const transcriptions = get().transcriptions
+        console.log('🔍 Looking for transcription with ID:', transcriptionId)
+
+        const updatedTranscriptions = transcriptions.map(t => {
+          if (t.id === transcriptionId) {
+            console.log('✅ Found matching transcription:', t.text)
+            const newTranslation = {
+              id: `${transcriptionId}-${targetLanguage}`,
+              targetLanguage,
+              translatedText,
+              confidence
+            }
+
+            // Add or update translation in the translations array
+            const translations = t.translations || []
+            const existingIndex = translations.findIndex(tr => tr.targetLanguage === targetLanguage)
+
+            if (existingIndex !== -1) {
+              console.log('📝 Updating existing translation')
+              translations[existingIndex] = newTranslation
+            } else {
+              console.log('➕ Adding new translation:', translatedText)
+              translations.push(newTranslation)
+            }
+
+            console.log('📊 Transcription now has translations:', translations)
+            return { ...t, translations }
+          }
+          return t
+        })
+
+        console.log('💾 Setting updated transcriptions in store')
+        set({ transcriptions: updatedTranscriptions })
+      })
+
       // Translation events
       socket.on('translation_ready', (data) => {
         console.log('🌐 Translation ready:', data)

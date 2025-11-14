@@ -372,32 +372,50 @@ export function MeetingRoom() {
                 <div className="text-center text-gray-400 text-sm mb-4">
                   Live captions with real-time translation
                 </div>
-                {transcriptions.map((transcription) => (
-                  <div key={transcription.id} className="p-3 bg-gray-700 rounded">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="text-blue-400 text-sm font-medium">
-                        {transcription.displayName || transcription.username || `User ${transcription.userId.slice(-4)}`}
-                      </span>
-                      <span className="text-gray-400 text-xs">
-                        {transcription.language.toUpperCase()}
-                      </span>
-                      <span className="text-gray-400 text-xs">
-                        {formatTime(transcription.timestamp)}
-                      </span>
-                    </div>
+                {transcriptions.map((transcription) => {
+                  // Check if there's an English translation available
+                  const englishTranslation = transcription.translations?.find(t => t.targetLanguage === 'en')
+                  const isNonEnglish = transcription.language !== 'en' && transcription.language !== 'english'
 
-                    {/* Translated English text (main display) */}
-                    <p className="text-white text-sm font-medium">{transcription.text}</p>
-
-                    {/* Original text - always show if available */}
-                    {transcription.originalText && (
-                      <div className="mt-2 p-2 bg-gray-800 rounded text-xs">
-                        <span className="text-gray-400">Original ({transcription.language}):</span>
-                        <p className="text-gray-300 mt-1">{transcription.originalText}</p>
+                  return (
+                    <div key={transcription.id} className="p-3 bg-gray-700 rounded">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-blue-400 text-sm font-medium">
+                          {transcription.displayName || transcription.username || `User ${transcription.userId.slice(-4)}`}
+                        </span>
+                        <span className="text-gray-400 text-xs">
+                          {transcription.language.toUpperCase()}
+                        </span>
+                        <span className="text-gray-400 text-xs">
+                          {formatTime(transcription.timestamp)}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {/* Show English translation as main text if available */}
+                      {englishTranslation ? (
+                        <>
+                          <p className="text-white text-sm font-medium">{englishTranslation.translatedText}</p>
+                          {/* Show original text below if it's not English */}
+                          <div className="mt-2 p-2 bg-gray-800 rounded text-xs">
+                            <span className="text-gray-400">Original ({transcription.language}):</span>
+                            <p className="text-gray-300 mt-1">{transcription.text}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* No translation yet - show original text */}
+                          <p className="text-white text-sm font-medium">{transcription.text}</p>
+                          {/* Show "Translating..." indicator if it's non-English */}
+                          {isNonEnglish && (
+                            <div className="mt-2 text-xs text-gray-400 italic">
+                              Translating to English...
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
                 {transcriptions.length === 0 && (
                   <div className="text-center text-gray-500 text-sm">
                     No transcriptions yet. Start speaking to see live captions.

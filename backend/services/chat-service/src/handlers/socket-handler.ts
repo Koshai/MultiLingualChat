@@ -657,70 +657,112 @@ export class SocketHandler {
 
       const transcription = await response.json();
 
-      console.log(`Transcription received: "${transcription.text}" (${transcription.language})`);
-
-      // Translate to English if not already English
-      let translatedText = transcription.text;
-      const translations: any[] = [];
-
-      if (transcription.language !== 'en' && transcription.language !== 'english') {
-        try {
-          const translationUrl = process.env.TRANSLATION_SERVICE_URL || 'http://localhost:3003';
-          const translationResponse = await fetch(`${translationUrl}/api/v1/translate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              text: transcription.text,
-              source_language: transcription.language,
-              target_language: 'en'
-            })
-          });
-
-          if (translationResponse.ok) {
-            const translationData = await translationResponse.json();
-            translatedText = translationData.translated_text;
-            translations.push({
-              id: translationData.id,
-              targetLanguage: 'en',
-              translatedText: translationData.translated_text,
-              confidence: translationData.confidence
-            });
-            console.log(`Translated to English: "${translatedText}"`);
-          } else {
-            console.warn(`Translation failed: ${translationResponse.status}`);
-          }
-        } catch (translationError) {
-          console.error('Translation error:', translationError);
-        }
+      // Skip empty transcriptions
+      if (!transcription.text || transcription.text.trim() === '') {
+        console.log('Skipping empty transcription');
+        return;
       }
 
-      // Broadcast transcription to all participants in the meeting
+      console.log(`Transcription received: "${transcription.text}" (${transcription.language})`);
+
+      // OPTIMIZATION: Broadcast transcription IMMEDIATELY (don't wait for translation)
       this.io.to(meetingId).emit('transcription', {
         id: transcription.id,
-        text: translatedText, // Show translated English text
-        language: transcription.language, // Original language
+        text: transcription.text,
+        language: transcription.language,
         userId: user.id,
         username: user.username,
         displayName: user.displayName,
         timestamp: new Date().toISOString(),
         segments: transcription.segments,
-        translations: translations,
-        originalText: transcription.text // Keep original for reference
+        originalText: transcription.text,
+        translations: [] // Empty initially, will be populated async
       });
 
-      // Save transcription to database
-      await this.db.createTranscription({
+      // Save transcription to database (async, don't wait)
+      this.db.createTranscription({
         meetingId,
         userId: user.id,
         text: transcription.text,
         language: transcription.language,
         timestamp: new Date()
-      });
+      }).catch(err => console.error('Error saving transcription:', err));
+
+      // Translate asynchronously in background (don't await)
+      console.log(`🔍 Checking if translation needed: language="${transcription.language}"`);
+      if (transcription.language !== 'en' && transcription.language !== 'english') {
+        console.log(`✅ Translation needed: ${transcription.language} → en`);
+        this.translateAndBroadcast(transcription, meetingId, user).catch(err => {
+          console.error('❌ Translation error:', err);
+          console.error('Translation error details:', err.message);
+        });
+      } else {
+        console.log(`⏭️  Skipping translation: language is already English (${transcription.language})`);
+      }
 
     } catch (error) {
       console.error('Error handling audio chunk:', error);
+    }
+  }
+
+  private async translateAndBroadcast(transcription: any, meetingId: string, user: any): Promise<void> {
+    try {
+      const translationUrl = process.env.TRANSLATION_SERVICE_URL || 'http://localhost:3003';
+      console.log(`🌐 Calling translation service at: ${translationUrl}/api/v1/translate`);
+      console.log(`📝 Translation request:`, {
+        text: transcription.text.substring(0, 50) + '...',
+        source_language: transcription.language,
+        target_language: 'en'
+      });
+
+      const translationResponse = await fetch(`${translationUrl}/api/v1/translate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: transcription.text,
+          source_language: transcription.language,
+          target_language: 'en'
+        })
+      });
+
+      console.log(`📡 Translation service response status: ${translationResponse.status}`);
+
+      if (translationResponse.ok) {
+        const translationData = await translationResponse.json();
+
+        console.log(`✅ Translation completed: ${transcription.language} → en: "${translationData.translated_text}"`);
+
+        // Broadcast translation update
+        this.io.to(meetingId).emit('transcription_translation', {
+          transcriptionId: transcription.id,
+          targetLanguage: 'en',
+          translatedText: translationData.translated_text,
+          confidence: translationData.confidence,
+          timestamp: new Date().toISOString()
+        });
+
+        console.log(`📤 Broadcasted translation to meeting ${meetingId}`);
+      } else {
+        const errorText = await translationResponse.text();
+        console.error(`❌ Translation service returned error ${translationResponse.status}: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('❌ Error in translateAndBroadcast:', error);
+      if (error instanceof Error) {
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+
+      // Check if it's a network error (translation service not running)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.error('🚨 TRANSLATION SERVICE APPEARS TO BE DOWN OR UNREACHABLE!');
+        console.error('   Make sure the translation service is running on port 3003');
+      }
+
+      throw error;
     }
   }
 }
