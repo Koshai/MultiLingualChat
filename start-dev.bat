@@ -60,7 +60,7 @@ echo Redis (Docker):      localhost:6379
 echo Chat Service:        http://localhost:3001
 echo STT Service:         http://localhost:3004
 echo Translation Service: http://localhost:3003
-echo Frontend:            http://localhost:5174
+echo Frontend:            http://localhost:5173
 echo.
 echo Press any key to stop all services...
 pause >nul

@@ -23,6 +23,8 @@ export function MeetingRoom() {
     isConnected,
     isTranscribing,
     transcriptionLanguage,
+    audioMode,
+    ttsVolume,
     joinMeeting,
     leaveMeeting,
     sendMessage,
@@ -33,6 +35,8 @@ export function MeetingRoom() {
     stopTyping,
     setCurrentMeeting,
     setTranscriptionLanguage,
+    setAudioMode,
+    setTTSVolume,
     initializeWebRTC,
     setupPeerConnection,
     startTranscription,
@@ -44,6 +48,7 @@ export function MeetingRoom() {
   const [showChat, setShowChat] = useState(true)
   const [showTranscriptions, setShowTranscriptions] = useState(false)
   const [showLanguageSelector, setShowLanguageSelector] = useState(false)
+  const [showAudioSettings, setShowAudioSettings] = useState(false)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const typingTimeoutRef = useRef<NodeJS.Timeout>()
@@ -528,6 +533,92 @@ export function MeetingRoom() {
                     {lang.name}
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Audio Mode & TTS Settings */}
+        <div className="relative">
+          <button
+            onClick={() => setShowAudioSettings(!showAudioSettings)}
+            className={`p-3 rounded-full ${
+              audioMode === 'translated'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'bg-gray-700 hover:bg-gray-600'
+            } text-white`}
+            title="Audio settings"
+          >
+            {audioMode === 'translated' ? '🔊' : '👂'}
+          </button>
+
+          {showAudioSettings && (
+            <div className="absolute bottom-full mb-2 right-0 w-72 bg-gray-800 border border-gray-600 rounded-lg shadow-xl">
+              <div className="p-4">
+                <div className="text-xs text-gray-400 mb-3">Audio Settings</div>
+
+                {/* Audio Mode Toggle */}
+                <div className="mb-4">
+                  <label className="text-xs text-gray-400 mb-2 block">Audio Mode</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setAudioMode('original')
+                      }}
+                      className={`flex-1 px-3 py-2 rounded text-sm font-medium ${
+                        audioMode === 'original'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>👂</span>
+                        <span>Original</span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAudioMode('translated')
+                      }}
+                      className={`flex-1 px-3 py-2 rounded text-sm font-medium ${
+                        audioMode === 'translated'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>🔊</span>
+                        <span>Translated</span>
+                      </div>
+                    </button>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {audioMode === 'original'
+                      ? 'Hear speakers in their original language'
+                      : 'Hear AI-translated speech in English'}
+                  </div>
+                </div>
+
+                {/* TTS Volume Slider */}
+                {audioMode === 'translated' && (
+                  <div>
+                    <label className="text-xs text-gray-400 mb-2 block">
+                      TTS Volume: {ttsVolume}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={ttsVolume}
+                      onChange={(e) => setTTSVolume(Number(e.target.value))}
+                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>Mute</span>
+                      <span>Max</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

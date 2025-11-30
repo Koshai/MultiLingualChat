@@ -11,7 +11,7 @@
 ```
 ┌─────────────┐
 │  FRONTEND   │ (React + Vite)
-│ Port: 5174  │
+│ Port: 5173  │
 └──────┬──────┘
        │ Socket.IO + REST
        ▼

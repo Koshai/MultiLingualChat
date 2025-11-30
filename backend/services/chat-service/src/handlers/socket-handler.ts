@@ -744,6 +744,18 @@ export class SocketHandler {
         });
 
         console.log(`📤 Broadcasted translation to meeting ${meetingId}`);
+
+        // Synthesize translated text to speech (async, don't block)
+        this.synthesizeAndBroadcast(
+          translationData.translated_text,
+          'en',
+          transcription.id,
+          meetingId,
+          user
+        ).catch(err => {
+          console.error('TTS synthesis error:', err.message);
+          // Continue even if TTS fails - translation is still displayed
+        });
       } else {
         const errorText = await translationResponse.text();
         console.error(`❌ Translation service returned error ${translationResponse.status}: ${errorText}`);
@@ -762,6 +774,74 @@ export class SocketHandler {
         console.error('   Make sure the translation service is running on port 3003');
       }
 
+      throw error;
+    }
+  }
+
+  private async synthesizeAndBroadcast(
+    text: string,
+    language: string,
+    transcriptionId: string,
+    meetingId: string,
+    user: any
+  ): Promise<void> {
+    try {
+      const ttsUrl = process.env.TTS_SERVICE_URL || 'http://localhost:3005';
+      console.log(`🎤 Calling TTS service at: ${ttsUrl}/api/v1/synthesis/synthesize`);
+      console.log(`🗣️  TTS request:`, {
+        text: text.substring(0, 50) + '...',
+        language,
+        transcriptionId
+      });
+
+      const ttsResponse = await fetch(`${ttsUrl}/api/v1/synthesis/synthesize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text,
+          language,
+          transcription_id: transcriptionId,
+          meeting_id: meetingId,
+          user_id: user.id,
+          speed: 1.0,
+          pitch: 1.0
+        })
+      });
+
+      console.log(`📡 TTS service response status: ${ttsResponse.status}`);
+
+      if (ttsResponse.ok) {
+        const ttsData = await ttsResponse.json();
+
+        console.log(`✅ TTS synthesis completed: ${ttsData.duration_seconds}s audio (${ttsData.provider})`);
+
+        // Broadcast TTS audio to all participants
+        this.io.to(meetingId).emit('tts_audio', {
+          transcriptionId,
+          audioData: ttsData.audio_data,
+          format: ttsData.format,
+          language: ttsData.language,
+          duration: ttsData.duration_seconds,
+          userId: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          timestamp: new Date().toISOString(),
+          provider: ttsData.provider
+        });
+
+        console.log(`📤 Broadcasted TTS audio to meeting ${meetingId}`);
+      } else {
+        const errorText = await ttsResponse.text();
+        console.error(`TTS service returned error ${ttsResponse.status}: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Error in synthesizeAndBroadcast:', error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        console.error('🚨 TTS SERVICE APPEARS TO BE DOWN OR UNREACHABLE!');
+        console.error('   Make sure the TTS service is running on port 3005');
+      }
       throw error;
     }
   }

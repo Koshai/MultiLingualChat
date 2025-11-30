@@ -5,6 +5,7 @@ import { Message, Meeting, TypingUser, MeetingParticipant, MediaSettings, WebRTC
 import { useAuthStore } from './auth-store'
 import { WebRTCService } from '@/services/webrtc-service'
 import { AudioRecorder } from '@/services/audio-recorder'
+import { TTSPlayer, TTSAudioEvent } from '@/services/tts-player'
 import toast from 'react-hot-toast'
 
 interface MeetingState {
@@ -22,8 +23,11 @@ interface MeetingState {
   localStream: MediaStream | null
   webrtcService: WebRTCService | null
   audioRecorder: AudioRecorder | null
+  ttsPlayer: TTSPlayer | null
   isTranscribing: boolean
   transcriptionLanguage: string | null // null = auto-detect
+  audioMode: 'original' | 'translated' // User preference for audio playback
+  ttsVolume: number // TTS volume (0-100)
   isLoading: boolean
   error: string | null
 }
@@ -50,6 +54,8 @@ interface MeetingActions {
   addTranscription: (transcription: AudioTranscription) => void
   setError: (error: string | null) => void
   setTranscriptionLanguage: (language: string | null) => void
+  setAudioMode: (mode: 'original' | 'translated') => void
+  setTTSVolume: (volume: number) => void
   initializeWebRTC: () => Promise<void>
   setupPeerConnection: (userId: string) => Promise<void>
   addRemoteStream: (userId: string, stream: MediaStream) => void
@@ -79,8 +85,11 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     localStream: null,
     webrtcService: null,
     audioRecorder: null,
+    ttsPlayer: null,
     isTranscribing: false,
     transcriptionLanguage: null, // null = auto-detect
+    audioMode: 'original', // Default to original audio
+    ttsVolume: 80, // Default TTS volume (80%)
     isLoading: false,
     error: null,
 
@@ -103,6 +112,14 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         console.log('🔗 Connected to meeting server')
         set({ isConnected: true, error: null })
         toast.success('Connected to meeting server')
+
+        // Initialize TTS player
+        const ttsPlayer = new TTSPlayer()
+        const { audioMode, ttsVolume } = get()
+        ttsPlayer.setEnabled(audioMode === 'translated')
+        ttsPlayer.setVolume(ttsVolume)
+        set({ ttsPlayer })
+        console.log('🔊 TTS player initialized')
       })
 
       socket.on('disconnect', () => {
@@ -257,6 +274,28 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         set({ transcriptions: updatedTranscriptions })
       })
 
+      // TTS Audio events
+      socket.on('tts_audio', (data: TTSAudioEvent) => {
+        console.log('🔊 TTS audio received:', {
+          transcriptionId: data.transcriptionId,
+          format: data.format,
+          duration: data.duration,
+          provider: data.provider
+        })
+
+        const { audioMode, ttsPlayer } = get()
+
+        // Only play TTS audio if user has selected "translated" mode
+        if (audioMode === 'translated' && ttsPlayer) {
+          console.log('▶️ Playing TTS audio (translated mode enabled)')
+          ttsPlayer.play(data).catch(err => {
+            console.error('Failed to play TTS audio:', err)
+          })
+        } else {
+          console.log('⏭️ Skipping TTS audio (original audio mode or TTS player not initialized)')
+        }
+      })
+
       // Translation events
       socket.on('translation_ready', (data) => {
         console.log('🌐 Translation ready:', data)
@@ -325,11 +364,16 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     },
 
     cleanup: () => {
-      const { socket, webrtcService, audioRecorder } = get()
+      const { socket, webrtcService, audioRecorder, ttsPlayer } = get()
 
       // Stop audio recording
       if (audioRecorder) {
         audioRecorder.stop()
+      }
+
+      // Cleanup TTS player
+      if (ttsPlayer) {
+        ttsPlayer.cleanup()
       }
 
       // Cleanup WebRTC
@@ -563,6 +607,35 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       const langText = language || 'auto-detect'
       console.log('Transcription language set to:', langText)
       toast.success(`Transcription language: ${langText}`)
+    },
+
+    setAudioMode: (mode: 'original' | 'translated') => {
+      const { ttsPlayer } = get()
+      set({ audioMode: mode })
+
+      // Update TTS player enabled state
+      if (ttsPlayer) {
+        ttsPlayer.setEnabled(mode === 'translated')
+      }
+
+      const modeText = mode === 'original' ? 'Original Audio' : 'Translated Audio (TTS)'
+      console.log('Audio mode set to:', modeText)
+      toast.success(`Audio mode: ${modeText}`)
+    },
+
+    setTTSVolume: (volume: number) => {
+      const { ttsPlayer } = get()
+
+      // Clamp volume between 0-100
+      const clampedVolume = Math.max(0, Math.min(100, volume))
+      set({ ttsVolume: clampedVolume })
+
+      // Update TTS player volume
+      if (ttsPlayer) {
+        ttsPlayer.setVolume(clampedVolume)
+      }
+
+      console.log('TTS volume set to:', clampedVolume)
     },
 
     // WebRTC Methods
