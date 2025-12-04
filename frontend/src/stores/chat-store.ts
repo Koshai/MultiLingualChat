@@ -53,13 +53,16 @@ export const useChatStore = create<ChatState & ChatActions>()(
       const { token } = useAuthStore.getState()
       if (!token) return
 
-      const socketUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
+      // Use VITE_WS_URL if set, otherwise connect to same origin as frontend
+      // This allows Ngrok to work (HTTPS frontend connects via HTTPS WebSocket)
+      const socketUrl = import.meta.env.VITE_WS_URL || window.location.origin
 
       const socket = io(socketUrl, {
         auth: {
           token
         },
-        transports: ['websocket']
+        transports: ['websocket'],
+        path: '/socket.io/'
       })
 
       // Connection events
