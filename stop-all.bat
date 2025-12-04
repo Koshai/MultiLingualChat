@@ -30,8 +30,14 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5173') do (
     taskkill /F /PID %%a 2>nul
 )
 
-echo [6/6] Stopping Ngrok tunnels...
+echo [6/8] Stopping Ngrok tunnels...
 taskkill /F /IM ngrok.exe 2>nul
+
+echo [7/8] Stopping LocalTunnel...
+taskkill /F /IM node.exe /FI "WINDOWTITLE eq LocalTunnel*" 2>nul
+
+echo [8/8] Stopping Cloudflare Tunnel...
+taskkill /F /IM cloudflared.exe 2>nul
 
 REM Also kill any node/python processes related to our services
 echo.
