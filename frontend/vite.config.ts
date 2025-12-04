@@ -7,14 +7,15 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    // Allow ngrok HTTPS to connect to local HTTP server
+    // Allow all external connections (ngrok, localtunnel, etc)
     strictPort: false,
-    // Disable host check to allow ngrok domains
-    // (Vite will accept requests from any host when host is '0.0.0.0')
     cors: true,
-    // Disable HMR completely for ngrok to avoid WebSocket SSL issues
+    // Disable HMR to avoid WebSocket issues with tunnels
     hmr: false,
-    // Additional headers for ngrok compatibility
+    // Disable host check - accept connections from ANY domain
+    // This is needed for localtunnel, ngrok, and other tunneling services
+    allowedHosts: true,
+    // Additional headers for tunnel compatibility
     headers: {
       'Access-Control-Allow-Origin': '*',
     },
