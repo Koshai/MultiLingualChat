@@ -21,13 +21,19 @@ if (!process.env.POSTGRES_URL) {
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: [
+
+// CORS configuration: Allow all origins if CORS_ORIGIN is "*", otherwise use specific origins
+const corsOrigin = process.env.CORS_ORIGIN === "*"
+  ? "*"
+  : [
       process.env.CORS_ORIGIN || "http://localhost:3000",
       "http://localhost:5173",
       "http://localhost:5174"
-    ],
+    ];
+
+const io = new Server(server, {
+  cors: {
+    origin: corsOrigin,
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -44,11 +50,7 @@ async function startServer() {
     // Middleware
     app.use(helmet());
     app.use(cors({
-      origin: [
-        process.env.CORS_ORIGIN || "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174"
-      ],
+      origin: corsOrigin,
       credentials: true
     }));
     app.use(morgan('combined'));

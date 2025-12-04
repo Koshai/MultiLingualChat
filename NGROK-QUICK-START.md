@@ -23,13 +23,19 @@ choco install ngrok
 
 1. Go to https://ngrok.com/signup
 2. Sign up (email + password)
-3. Copy your authtoken from dashboard
-4. Run once:
+3. Go to https://dashboard.ngrok.com/get-started/your-authtoken
+4. Copy your authtoken (looks like: `2abc...xyz`)
+5. Run once (replace with your actual token):
 ```bash
 ngrok config add-authtoken YOUR_AUTH_TOKEN_HERE
 ```
 
-**That's it!** You only do this once.
+**Example:**
+```bash
+ngrok config add-authtoken 2abcdefGHIJKLMNOP_1234567890qrstuvwxyzABCDEF
+```
+
+**That's it!** You only do this once. This saves your token to `~/.ngrok2/ngrok.yml`
 
 ---
 
@@ -65,6 +71,8 @@ ngrok http 5173
 
 **Copy the HTTPS URL** that appears (e.g., `https://abc123xyz.ngrok-free.app`)
 
+**HTTPS now works!** Socket.IO uses polling which works perfectly through ngrok.
+
 ---
 
 ## 📱 Send to Client
@@ -76,8 +84,8 @@ Hey! Join the demo at:
 https://YOUR-NGROK-URL.ngrok-free.app
 
 Instructions:
-1. Open the link
-2. Click "Visit Site" (Ngrok page)
+1. Open the link (HTTPS works!)
+2. Click "Visit Site" (Ngrok interstitial page)
 3. Create an account (any username/password)
 4. Join the "Demo Meeting"
 5. Click the 🔊 button and select "Translated"
@@ -141,6 +149,37 @@ Then I'll speak in [your language] and you'll hear English!
 ---
 
 ## 🐛 Troubleshooting
+
+### **Issue: "ERR_NGROK_108" or "authentication failed"**
+
+**Cause:** Authtoken not configured
+
+**Fix:**
+```bash
+# Get your token from: https://dashboard.ngrok.com/get-started/your-authtoken
+# Then run (replace with your actual token):
+ngrok config add-authtoken YOUR_ACTUAL_TOKEN_HERE
+```
+
+### **Issue: SSL/HTTPS Certificate Errors (FIXED!)**
+
+**This has been fixed!** The app now works with HTTPS ngrok URLs.
+
+**What was the problem?**
+- Socket.IO was trying to connect via WebSocket (WSS) directly
+- Ngrok's HTTPS → HTTP proxy had issues with WebSocket upgrades
+
+**How it's fixed:**
+- Socket.IO now uses **polling first** (works perfectly over HTTPS)
+- Then automatically upgrades to WebSocket when possible
+- No code changes needed on your end - just use ngrok normally!
+
+**Just run:**
+```bash
+ngrok http 5173  # Creates both HTTP and HTTPS - use HTTPS!
+```
+
+**Or use the automated script:** `START-NGROK.bat`
 
 ### **Issue: "ngrok: command not found"**
 
@@ -257,7 +296,7 @@ Connections                   ttl     opn     rt1     rt5     p50     p90
                               2       0       0.00    0.00    1.23    2.45
 ```
 
-**Copy this URL:** `https://abc123xyz.ngrok-free.app`
+**Copy this URL:** `https://abc123xyz.ngrok-free.app` (HTTPS works perfectly!)
 
 ### **Client's First Visit (Free Tier):**
 
@@ -323,13 +362,16 @@ START-NGROK.bat
 
 # Or manual:
 START-HERE.bat          # Terminal 1: Start services
-ngrok http 5173         # Terminal 2: Start tunnel
+ngrok http 5173         # Terminal 2: Start tunnel (HTTPS works!)
 
 # Stop everything
 stop-all.bat            # Stops services + ngrok
 
 # Check ngrok version
 ngrok --version
+
+# Configure authtoken (one-time setup)
+ngrok config add-authtoken YOUR_TOKEN
 
 # View ngrok dashboard
 # Open: http://127.0.0.1:4040

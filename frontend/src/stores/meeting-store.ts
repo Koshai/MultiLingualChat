@@ -106,7 +106,9 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         auth: {
           token
         },
-        transports: ['websocket'],
+        // Allow polling first for better compatibility with ngrok HTTPS
+        // Socket.IO will upgrade to WebSocket automatically when possible
+        transports: ['polling', 'websocket'],
         path: '/socket.io/'
       })
 

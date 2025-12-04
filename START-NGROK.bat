@@ -87,8 +87,10 @@ echo  Creating public tunnel to http://localhost:5173
 echo.
 echo  Starting Ngrok...
 
-REM Start ngrok in a new window
-start "Ngrok Tunnel" cmd /k "ngrok http 5173"
+REM IMPORTANT: ngrok v3 only creates HTTPS by default
+REM We need to explicitly enable BOTH HTTP and HTTPS schemes
+REM This creates two URLs: one HTTP and one HTTPS
+start "Ngrok Tunnel" cmd /k "ngrok http --scheme http --scheme https 5173"
 
 echo.
 echo  ================================================
@@ -97,10 +99,13 @@ echo  ================================================
 echo.
 echo  Ngrok is starting in a new window...
 echo.
-echo  Look for a line like this:
+echo  Look for TWO forwarding lines like this:
+echo    Forwarding  http://abc123xyz.ngrok-free.app -^> http://localhost:5173
 echo    Forwarding  https://abc123xyz.ngrok-free.app -^> http://localhost:5173
 echo.
-echo  Copy that HTTPS URL and send it to your client!
+echo  TRY THE HTTP URL FIRST (if HTTPS gives SSL errors)
+echo  Copy either URL and send it to your client!
+echo  Both should work - use whichever loads successfully
 echo.
 echo  ================================================
 echo      CLIENT CONNECTION INSTRUCTIONS
@@ -113,6 +118,8 @@ echo  "Create an account and join the meeting!"
 echo.
 echo  ⚠️  Note: Free Ngrok shows an interstitial page
 echo      Your client will need to click "Visit Site"
+echo.
+echo  ✅  HTTPS works! Socket.IO uses polling for compatibility
 echo.
 echo  ================================================
 echo      DEMO CHECKLIST

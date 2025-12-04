@@ -47,12 +47,18 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
-    # CORS
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://localhost:3001"
-    ]
+    # CORS - Support wildcard for Ngrok/development
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        """Get CORS origins, supporting wildcard for development."""
+        cors_env = os.getenv("CORS_ORIGIN", "")
+        if cors_env == "*":
+            return ["*"]
+        return [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:3001"
+        ]
 
     class Config:
         env_file = str(ENV_FILE)

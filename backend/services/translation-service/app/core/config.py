@@ -52,13 +52,19 @@ class Settings(BaseSettings):
     TRANSLATION_TIMEOUT: int = int(os.getenv("TRANSLATION_TIMEOUT", 30))
     RETRY_ATTEMPTS: int = int(os.getenv("RETRY_ATTEMPTS", 3))
 
-    # CORS settings
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001"
-    ]
+    # CORS settings - Support wildcard for Ngrok/development
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        """Get CORS origins, supporting wildcard for development."""
+        cors_env = os.getenv("CORS_ORIGIN", "")
+        if cors_env == "*":
+            return ["*"]
+        return [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3001"
+        ]
 
     # Supported languages
     SUPPORTED_LANGUAGES: List[str] = [

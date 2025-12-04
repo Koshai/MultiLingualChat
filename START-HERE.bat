@@ -14,7 +14,7 @@ echo  What will happen:
 echo    1. Stop any running services
 echo    2. Start 5 service windows
 echo    3. Wait 15-20 seconds
-echo    4. Open browser to http://localhost:5174
+echo    4. Open browser to http://localhost:5173
 echo.
 echo  ================================================
 echo.
