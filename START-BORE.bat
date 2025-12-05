@@ -1,23 +1,8 @@
 @echo off
 echo ================================================
-echo   Starting MultiLingual Chat with Pinggy Tunnel
+echo   Starting MultiLingual Chat with Bore Tunnel
 echo ================================================
 echo.
-
-REM Check if Pinggy is available via SSH
-where ssh >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: SSH not found!
-    echo.
-    echo Please install OpenSSH:
-    echo 1. Go to Settings ^> Apps ^> Optional Features
-    echo 2. Click "Add a feature"
-    echo 3. Find and install "OpenSSH Client"
-    echo.
-    echo Or use Git Bash which includes SSH
-    pause
-    exit /b 1
-)
 
 echo [Step 1/6] Starting Translation Service (port 3003)...
 start "Translation Service" cmd /k "cd backend\services\translation-service && python main.py"
@@ -40,34 +25,42 @@ start "Frontend" cmd /k "cd frontend && npm run dev"
 timeout /t 5 /nobreak >nul
 
 echo.
-echo [Step 6/6] Starting Pinggy Tunnel...
+echo [Step 6/6] Installing and Starting Bore Tunnel...
 echo.
+
+REM Check if bore is installed
+where bore >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo Bore not found! Installing via cargo...
+    echo.
+    echo Please wait, this will take 2-3 minutes...
+    cargo install bore-cli
+    echo.
+    echo Bore installed successfully!
+    echo.
+)
+
 echo ================================================
-echo   IMPORTANT: Pinggy Setup
+echo   IMPORTANT: Bore Tunnel Info
 echo ================================================
 echo.
-echo Pinggy will create a tunnel to your frontend (port 5173)
+echo Bore will create a tunnel to your frontend (port 5173)
 echo.
 echo You will see output like:
-echo   http://randomname.a.pinggy.online
-echo   https://randomname.a.pinggy.online
+echo   listening at bore.pub:xxxxx
 echo.
-echo SHARE THE HTTP URL with your client!
-echo Example: http://abc123.a.pinggy.online
+echo Your public URL will be: http://bore.pub:xxxxx
+echo.
+echo SHARE THIS URL with your client!
 echo.
 echo The tunnel will stay open in this window.
 echo Press Ctrl+C here to stop the tunnel.
 echo.
-echo Starting Pinggy tunnel now...
+echo Starting Bore tunnel now...
 echo ================================================
 echo.
 
-REM Start Pinggy tunnel for port 5173
-REM Using updated Pinggy command format
-REM If this asks for password:
-REM 1. Press Enter (blank password) OR
-REM 2. Type anything random and press Enter OR
-REM 3. Generate SSH key first: ssh-keygen (press Enter for all prompts)
-ssh -p 443 -R0:localhost:5173 a.pinggy.io
+REM Start Bore tunnel
+bore local 5173 --to bore.pub
 
 pause

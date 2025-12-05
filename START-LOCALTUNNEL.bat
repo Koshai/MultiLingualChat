@@ -1,23 +1,8 @@
 @echo off
 echo ================================================
-echo   Starting MultiLingual Chat with Pinggy Tunnel
+echo   Starting MultiLingual Chat with LocalTunnel
 echo ================================================
 echo.
-
-REM Check if Pinggy is available via SSH
-where ssh >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: SSH not found!
-    echo.
-    echo Please install OpenSSH:
-    echo 1. Go to Settings ^> Apps ^> Optional Features
-    echo 2. Click "Add a feature"
-    echo 3. Find and install "OpenSSH Client"
-    echo.
-    echo Or use Git Bash which includes SSH
-    pause
-    exit /b 1
-)
 
 echo [Step 1/6] Starting Translation Service (port 3003)...
 start "Translation Service" cmd /k "cd backend\services\translation-service && python main.py"
@@ -37,37 +22,46 @@ timeout /t 5 /nobreak >nul
 
 echo [Step 5/6] Starting Frontend (port 5173)...
 start "Frontend" cmd /k "cd frontend && npm run dev"
-timeout /t 5 /nobreak >nul
 
 echo.
-echo [Step 6/6] Starting Pinggy Tunnel...
+echo Waiting for services to start (15 seconds)...
+timeout /t 15 /nobreak >nul
+
 echo.
+echo [Step 6/6] Installing and Starting LocalTunnel...
+echo.
+
+echo Checking if localtunnel is installed...
+call npm list -g localtunnel >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo LocalTunnel not found! Installing...
+    call npm install -g localtunnel
+    echo LocalTunnel installed successfully!
+    echo.
+)
+
 echo ================================================
-echo   IMPORTANT: Pinggy Setup
+echo   IMPORTANT: LocalTunnel Info
 echo ================================================
 echo.
-echo Pinggy will create a tunnel to your frontend (port 5173)
+echo LocalTunnel will create a tunnel to your frontend (port 5173)
 echo.
 echo You will see output like:
-echo   http://randomname.a.pinggy.online
-echo   https://randomname.a.pinggy.online
+echo   your url is: https://random-name.loca.lt
 echo.
-echo SHARE THE HTTP URL with your client!
-echo Example: http://abc123.a.pinggy.online
+echo SHARE THIS URL with your client!
+echo.
+echo NOTE: First time visitors will see a warning page.
+echo Click "Continue" to proceed - this is normal for LocalTunnel.
 echo.
 echo The tunnel will stay open in this window.
 echo Press Ctrl+C here to stop the tunnel.
 echo.
-echo Starting Pinggy tunnel now...
+echo Starting LocalTunnel now...
 echo ================================================
 echo.
 
-REM Start Pinggy tunnel for port 5173
-REM Using updated Pinggy command format
-REM If this asks for password:
-REM 1. Press Enter (blank password) OR
-REM 2. Type anything random and press Enter OR
-REM 3. Generate SSH key first: ssh-keygen (press Enter for all prompts)
-ssh -p 443 -R0:localhost:5173 a.pinggy.io
+REM Start LocalTunnel
+npx localtunnel --port 5173
 
 pause
