@@ -99,14 +99,14 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       if (!token) return
 
       // Use VITE_WS_URL if set, otherwise connect to same origin as frontend
-      // This allows Ngrok to work (HTTPS frontend connects via HTTPS WebSocket)
+      // This allows tunneling services (Ngrok, Pinggy, etc.) to work with HTTPS
       const socketUrl = import.meta.env.VITE_WS_URL || window.location.origin
 
       const socket = io(socketUrl, {
         auth: {
           token
         },
-        // Allow polling first for better compatibility with ngrok HTTPS
+        // Allow polling first for better compatibility with tunneling services
         // Socket.IO will upgrade to WebSocket automatically when possible
         transports: ['polling', 'websocket'],
         path: '/socket.io/'

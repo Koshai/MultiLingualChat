@@ -7,14 +7,14 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    // Allow ngrok HTTPS to connect to local HTTP server
+    // Allow tunneling services (ngrok, Pinggy, etc.) to connect to local HTTP server
     strictPort: false,
-    // Disable host check to allow ngrok domains
+    // Disable host check to allow tunnel domains
     // (Vite will accept requests from any host when host is '0.0.0.0')
     cors: true,
-    // Disable HMR completely for ngrok to avoid WebSocket SSL issues
+    // Disable HMR completely for tunnels to avoid WebSocket SSL issues
     hmr: false,
-    // Additional headers for ngrok compatibility
+    // Additional headers for tunnel compatibility
     headers: {
       'Access-Control-Allow-Origin': '*',
     },
@@ -23,7 +23,7 @@ export default defineConfig({
         target: process.env.VITE_API_URL || 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
-        // Preserve X-Forwarded-* headers from ngrok
+        // Preserve X-Forwarded-* headers from tunneling services
         headers: {
           'X-Forwarded-Proto': 'https'
         }
@@ -42,7 +42,7 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         ws: true,
-        // Preserve X-Forwarded-* headers from ngrok for Socket.IO
+        // Preserve X-Forwarded-* headers from tunneling services for Socket.IO
         headers: {
           'X-Forwarded-Proto': 'https'
         },
@@ -53,7 +53,7 @@ export default defineConfig({
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('Proxying Socket.IO request:', req.method, req.url);
-            // Ensure X-Forwarded headers are set for ngrok HTTPS
+            // Ensure X-Forwarded headers are set for tunnel HTTPS
             if (req.headers['x-forwarded-proto']) {
               proxyReq.setHeader('X-Forwarded-Proto', req.headers['x-forwarded-proto']);
             }
