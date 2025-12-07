@@ -7,10 +7,10 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    // Allow tunneling services (ngrok, Pinggy, etc.) to connect to local HTTP server
+    // Allow tunneling services (ngrok, Pinggy, Cloudflare, etc.) to connect to local HTTP server
     strictPort: false,
-    // Disable host check to allow tunnel domains
-    // (Vite will accept requests from any host when host is '0.0.0.0')
+    // Disable host check to allow tunnel domains (Cloudflare, ngrok, etc.)
+    allowedHosts: true,
     cors: true,
     // Disable HMR completely for tunnels to avoid WebSocket SSL issues
     hmr: false,
@@ -20,7 +20,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'http://localhost:3001',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
         // Preserve X-Forwarded-* headers from tunneling services
@@ -29,7 +29,7 @@ export default defineConfig({
         }
       },
       '/translation-api': {
-        target: process.env.VITE_TRANSLATION_API_URL || 'http://localhost:3003',
+        target: 'http://localhost:3003',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/translation-api/, '/api/v1'),
