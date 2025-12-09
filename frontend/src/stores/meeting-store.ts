@@ -168,7 +168,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         })
       })
 
-      socket.on('participant_joined', (data) => {
+      socket.on('participant_joined', async (data) => {
         console.log('👥 Participant joined:', data.participant.user?.displayName)
         const participants = get().participants
         // Check if participant already exists to avoid duplicates
@@ -176,6 +176,21 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         if (existingIndex === -1) {
           set({ participants: [...participants, data.participant] })
           toast.success(`${data.participant.user?.displayName || 'Someone'} joined the meeting`)
+
+          // IMPORTANT: Initiate WebRTC connection with the new participant
+          const { webrtcService } = get()
+          if (webrtcService) {
+            console.log('🔗 Initiating WebRTC connection with new participant:', data.participant.userId)
+            try {
+              await webrtcService.createOffer(data.participant.userId)
+              console.log('✅ WebRTC offer sent to:', data.participant.userId)
+            } catch (error) {
+              console.error('❌ Failed to create WebRTC offer:', error)
+              toast.error(`Failed to connect video with ${data.participant.user?.displayName}`)
+            }
+          } else {
+            console.warn('⚠️ WebRTC service not initialized, cannot connect to new participant')
+          }
         } else {
           console.log('⚠️ Participant already in list, skipping duplicate')
         }
@@ -277,6 +292,27 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
 
         console.log('💾 Setting updated transcriptions in store')
         set({ transcriptions: updatedTranscriptions })
+      })
+
+      // Translation error events
+      socket.on('translation_error', (data: { transcriptionId: string, error: string, message: string }) => {
+        console.error('❌ Translation error received:', data)
+        toast.error(`Translation Error: ${data.error}`, {
+          duration: 5000
+        })
+
+        // Mark transcription as having a translation error
+        const transcriptions = get().transcriptions.map(t => {
+          if (t.id === data.transcriptionId) {
+            return {
+              ...t,
+              translationError: true,
+              translationErrorMessage: data.error
+            }
+          }
+          return t
+        })
+        set({ transcriptions })
       })
 
       // TTS Audio events

@@ -289,9 +289,9 @@ export function MeetingRoom() {
 
         {/* Side Panel */}
         {(showChat || showTranscriptions) && (
-          <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
+          <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col max-h-screen">
             {/* Panel Tabs */}
-            <div className="flex bg-gray-700">
+            <div className="flex bg-gray-700 flex-shrink-0">
               {showChat && (
                 <button
                   onClick={() => setShowTranscriptions(false)}
@@ -317,7 +317,7 @@ export function MeetingRoom() {
             {/* Chat Panel */}
             {showChat && !showTranscriptions && (
               <>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
                   {messages.map((message) => (
                     <div key={message.id} className="flex space-x-2">
                       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -350,7 +350,7 @@ export function MeetingRoom() {
                 </div>
 
                 {/* Chat Input */}
-                <div className="p-4 border-t border-gray-700">
+                <div className="p-4 border-t border-gray-700 flex-shrink-0">
                   <form onSubmit={handleSendMessage} className="flex space-x-2">
                     <input
                       type="text"
@@ -373,7 +373,7 @@ export function MeetingRoom() {
 
             {/* Transcriptions Panel */}
             {showTranscriptions && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
                 <div className="text-center text-gray-400 text-sm mb-4">
                   Live captions with real-time translation
                 </div>
@@ -381,6 +381,7 @@ export function MeetingRoom() {
                   // Check if there's an English translation available
                   const englishTranslation = transcription.translations?.find(t => t.targetLanguage === 'en')
                   const isNonEnglish = transcription.language !== 'en' && transcription.language !== 'english'
+                  const hasTranslationError = (transcription as any).translationError
 
                   return (
                     <div key={transcription.id} className="p-3 bg-gray-700 rounded">
@@ -410,10 +411,18 @@ export function MeetingRoom() {
                         <>
                           {/* No translation yet - show original text */}
                           <p className="text-white text-sm font-medium">{transcription.text}</p>
-                          {/* Show "Translating..." indicator if it's non-English */}
+                          {/* Show "Translating..." indicator or error if it's non-English */}
                           {isNonEnglish && (
-                            <div className="mt-2 text-xs text-gray-400 italic">
-                              Translating to English...
+                            <div className="mt-2 text-xs">
+                              {hasTranslationError ? (
+                                <div className="text-red-400">
+                                  ⚠️ Translation unavailable - {(transcription as any).translationErrorMessage || 'Service not responding'}
+                                </div>
+                              ) : (
+                                <div className="text-gray-400 italic">
+                                  Translating to English...
+                                </div>
+                              )}
                             </div>
                           )}
                         </>

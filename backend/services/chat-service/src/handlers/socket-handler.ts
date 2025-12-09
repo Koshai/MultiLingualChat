@@ -724,7 +724,9 @@ export class SocketHandler {
           text: transcription.text,
           source_language: transcription.language,
           target_language: 'en'
-        })
+        }),
+        // Add timeout to detect if service is unresponsive
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       });
 
       console.log(`📡 Translation service response status: ${translationResponse.status}`);
@@ -759,6 +761,13 @@ export class SocketHandler {
       } else {
         const errorText = await translationResponse.text();
         console.error(`❌ Translation service returned error ${translationResponse.status}: ${errorText}`);
+
+        // Send error notification to frontend
+        this.io.to(meetingId).emit('translation_error', {
+          transcriptionId: transcription.id,
+          error: `Translation service error: ${translationResponse.status}`,
+          message: 'Translation service is having issues. Please check the service logs.'
+        });
       }
     } catch (error) {
       console.error('❌ Error in translateAndBroadcast:', error);
@@ -768,13 +777,27 @@ export class SocketHandler {
         console.error('Error stack:', error.stack);
       }
 
-      // Check if it's a network error (translation service not running)
+      // Check error type and send appropriate notification
+      let errorMessage = 'Translation failed';
       if (error instanceof TypeError && error.message.includes('fetch')) {
         console.error('🚨 TRANSLATION SERVICE APPEARS TO BE DOWN OR UNREACHABLE!');
         console.error('   Make sure the translation service is running on port 3003');
+        console.error('   Check: http://localhost:3003/health');
+        errorMessage = 'Translation service is not running. Please start all services with START-HERE.bat';
+      } else if (error instanceof Error && error.name === 'AbortError') {
+        console.error('⏱️  Translation service timeout - service may be overloaded or stuck');
+        errorMessage = 'Translation service timeout - service may be slow or unresponsive';
       }
 
-      throw error;
+      // Send error notification to frontend
+      this.io.to(meetingId).emit('translation_error', {
+        transcriptionId: transcription.id,
+        error: errorMessage,
+        message: 'Please check that all services are running'
+      });
+
+      // Don't throw - allow transcription to continue without translation
+      console.log('⏭️  Continuing without translation for this transcription');
     }
   }
 
