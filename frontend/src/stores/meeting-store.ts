@@ -535,8 +535,16 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     },
 
     toggleAudio: () => {
-      const { mediaSettings, socket, currentMeeting, webrtcService } = get()
+      const { mediaSettings, socket, currentMeeting, webrtcService, localStream } = get()
       const newAudioState = !mediaSettings.audioEnabled
+
+      console.log('🎤 Toggle Audio clicked:', {
+        currentState: mediaSettings.audioEnabled,
+        newState: newAudioState,
+        hasWebRTC: !!webrtcService,
+        hasStream: !!localStream,
+        audioTracks: localStream?.getAudioTracks().length || 0
+      })
 
       set({
         mediaSettings: {
@@ -548,12 +556,24 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       // Toggle WebRTC audio track
       if (webrtcService) {
         webrtcService.toggleAudio(newAudioState)
+        console.log('✅ Audio toggled via WebRTC service')
+      } else {
+        console.warn('⚠️ WebRTC service not initialized')
+      }
+
+      // Also toggle on local stream directly as fallback
+      if (localStream) {
+        localStream.getAudioTracks().forEach(track => {
+          track.enabled = newAudioState
+          console.log(`🎵 Audio track ${track.id}: enabled=${track.enabled}`)
+        })
       }
 
       if (socket && socket.connected && currentMeeting) {
         socket.emit(newAudioState ? 'enable_audio' : 'disable_audio', {
           meetingId: currentMeeting.id
         })
+        console.log(`📡 Sent ${newAudioState ? 'enable' : 'disable'}_audio to server`)
       }
     },
 

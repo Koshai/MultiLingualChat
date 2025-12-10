@@ -108,41 +108,59 @@ export class WebRTCService {
    * Create peer connection for a specific user
    */
   private createPeerConnection(userId: string): RTCPeerConnection {
+    console.log(`🆕 Creating peer connection for user: ${userId}`)
     const peerConnection = new RTCPeerConnection(this.config)
 
     // Add local stream tracks to peer connection
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
+      const tracks = this.localStream.getTracks()
+      console.log(`➕ Adding ${tracks.length} local tracks:`, tracks.map(t => `${t.kind}:enabled=${t.enabled}`))
+      tracks.forEach(track => {
         peerConnection.addTrack(track, this.localStream!)
+        console.log(`  ✅ Added ${track.kind} track: ${track.id}`)
       })
+    } else {
+      console.error('❌ No local stream when creating peer connection!')
     }
 
     // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('🧊 Sending ICE candidate to:', userId)
+        console.log('🧊 Sending ICE candidate to:', userId, `type:${event.candidate.type}`)
         this.socket.emit('webrtc:ice-candidate', {
           targetUserId: userId,
           candidate: event.candidate
         })
+      } else {
+        console.log('🧊 ICE gathering complete for:', userId)
       }
     }
 
     // Handle remote stream
     peerConnection.ontrack = (event) => {
-      console.log('📺 Received remote track from:', userId, event.streams[0])
+      console.log('📺 Received remote track from:', userId, {
+        kind: event.track.kind,
+        enabled: event.track.enabled,
+        readyState: event.track.readyState,
+        streams: event.streams.length
+      })
       if (event.streams && event.streams[0]) {
-        this.onRemoteStreamCallback?.(userId, event.streams[0])
+        const stream = event.streams[0]
+        console.log(`  📹 Stream has ${stream.getTracks().length} tracks:`,
+          stream.getTracks().map(t => `${t.kind}:${t.readyState}`))
+        this.onRemoteStreamCallback?.(userId, stream)
       }
     }
 
     // Handle connection state changes
     peerConnection.onconnectionstatechange = () => {
-      console.log(`🔗 Connection state with ${userId}:`, peerConnection.connectionState)
+      const state = peerConnection.connectionState
+      console.log(`🔗 Connection state with ${userId}:`, state)
 
-      if (peerConnection.connectionState === 'disconnected' ||
-          peerConnection.connectionState === 'failed' ||
-          peerConnection.connectionState === 'closed') {
+      if (state === 'connected') {
+        console.log(`✅ Successfully connected to ${userId}`)
+      } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        console.warn(`⚠️ Connection ${state} with ${userId}`)
         this.onPeerDisconnectedCallback?.(userId)
       }
     }
@@ -153,6 +171,7 @@ export class WebRTCService {
     }
 
     this.peerConnections.set(userId, peerConnection)
+    console.log(`✅ Peer connection stored for ${userId}`)
     return peerConnection
   }
 
