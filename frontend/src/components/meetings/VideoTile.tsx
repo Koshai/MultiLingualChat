@@ -26,7 +26,7 @@ export function VideoTile({
   const firstLetter = displayName.charAt(0).toUpperCase()
 
   return (
-    <div className={`relative bg-gray-800 rounded-lg overflow-hidden ${isLocal ? 'border-2 border-blue-500' : ''}`}>
+    <div className={`relative bg-gray-800 rounded-lg overflow-hidden aspect-video min-h-[200px] max-h-[400px] ${isLocal ? 'border-2 border-blue-500' : ''}`}>
       {stream && !isVideoOff ? (
         <video
           ref={videoRef}
