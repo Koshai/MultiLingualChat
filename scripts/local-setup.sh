@@ -69,6 +69,26 @@ fi
 pip install -r requirements.txt
 cd ../../..
 
+# Install STT service dependencies
+echo "📦 Installing STT service dependencies..."
+cd backend/services/stt-service
+if [ ! -f "requirements.txt" ]; then
+    echo "❌ STT service requirements.txt not found"
+    exit 1
+fi
+pip install -r requirements.txt
+cd ../../..
+
+# Install TTS service dependencies
+echo "📦 Installing TTS service dependencies..."
+cd backend/services/tts-service
+if [ ! -f "requirements.txt" ]; then
+    echo "❌ TTS service requirements.txt not found"
+    exit 1
+fi
+pip install -r requirements.txt
+cd ../../..
+
 echo ""
 echo "✅ Local development setup complete!"
 echo ""
@@ -76,7 +96,7 @@ echo "📋 Next steps:"
 echo "1. Review and update .env file if needed"
 echo "2. Set up local PostgreSQL (optional - can use SQLite)"
 echo "3. Set up local Redis (optional - services work without caching)"
-echo "4. Install LibreTranslate (optional - can use mock translation)"
+echo "4. Configure Azure/Whisper/Piper provider settings as needed"
 echo ""
 echo "🔧 Optional dependencies:"
 echo "- PostgreSQL: Create a database named 'multilingual_chat'"

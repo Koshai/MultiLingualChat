@@ -2,15 +2,15 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import Joi from 'joi';
-import { DatabaseService } from '../services/database';
+import { SQLiteDatabaseService } from '../services/sqlite-database';
 
 export class AuthController {
   public router: Router;
-  private db: DatabaseService;
+  private db: SQLiteDatabaseService;
 
   constructor() {
     this.router = Router();
-    this.db = DatabaseService.getInstance();
+    this.db = SQLiteDatabaseService.getInstance();
     this.setupRoutes();
   }
 
@@ -58,7 +58,7 @@ export class AuthController {
       const user = await this.db.createUser({
         username: value.username,
         email: value.email,
-        password: hashedPassword,
+        passwordHash: hashedPassword,
         displayName: value.displayName,
         preferredLanguage: value.preferredLanguage || 'en'
       });
@@ -113,8 +113,12 @@ export class AuthController {
         return;
       }
 
-      // Get user by username (with password hash for verification)
-      const user = await this.db.getUserByUsernameWithPassword(value.username);
+      const loginIdentifier = value.username.trim();
+      let user = await this.db.getUserByUsernameWithPassword(loginIdentifier);
+      if (!user && loginIdentifier.includes('@')) {
+        user = await this.db.getUserByEmailWithPassword(loginIdentifier);
+      }
+
       if (!user) {
         res.status(401).json({ success: false, error: 'Invalid credentials' });
         return;

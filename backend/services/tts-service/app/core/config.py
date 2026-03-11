@@ -15,10 +15,6 @@ class Settings(BaseSettings):
     tts_service_host: str = "0.0.0.0"
     tts_service_port: int = 3005
 
-    # Fallback configuration
-    enable_piper_fallback: bool = False
-    piper_model_path: str = "./models/piper"
-
     # Logging
     log_level: str = "INFO"
 

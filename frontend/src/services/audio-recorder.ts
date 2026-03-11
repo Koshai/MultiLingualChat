@@ -4,6 +4,8 @@ export interface AudioRecorderConfig {
   sampleRate?: number
   channelCount?: number
   chunkDurationMs?: number
+  silenceThreshold?: number
+  minSpeechRatio?: number
   language?: string | null // null = auto-detect
 }
 
@@ -26,7 +28,9 @@ export class AudioRecorder {
     this.config = {
       sampleRate: config?.sampleRate || 16000,
       channelCount: config?.channelCount || 1,
-      chunkDurationMs: config?.chunkDurationMs || 1500 // 1.5 seconds for near real-time responses
+      chunkDurationMs: config?.chunkDurationMs || 1500, // 1.5 seconds for near real-time responses
+      silenceThreshold: config?.silenceThreshold || 0.008,
+      minSpeechRatio: config?.minSpeechRatio || 0.015
     }
   }
 
@@ -186,17 +190,23 @@ export class AudioRecorder {
    * Detect if audio contains actual speech (not silence)
    */
   private detectAudio(samples: Float32Array): boolean {
-    // Calculate RMS (Root Mean Square) to detect audio level
+    // Calculate RMS (Root Mean Square) and active-sample ratio.
+    // This avoids sending chunks that are mostly silence or background hum.
     let sum = 0
+    let activeSamples = 0
+    const threshold = this.config.silenceThreshold
     for (let i = 0; i < samples.length; i++) {
-      sum += samples[i] * samples[i]
+      const sample = samples[i]
+      const amplitude = Math.abs(sample)
+      sum += sample * sample
+      if (amplitude > threshold) {
+        activeSamples++
+      }
     }
     const rms = Math.sqrt(sum / samples.length)
+    const speechRatio = activeSamples / samples.length
 
-    // Threshold for speech detection (adjust as needed)
-    const threshold = 0.01
-
-    return rms > threshold
+    return rms > threshold && speechRatio > this.config.minSpeechRatio
   }
 
   /**

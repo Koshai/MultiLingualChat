@@ -62,6 +62,53 @@ export interface SocketUser {
   currentMeeting?: string
 }
 
+export interface ParticipantJoinedEvent {
+  participant: MeetingParticipant
+  timestamp: string
+}
+
+export interface ParticipantLeftEvent {
+  participant: MeetingParticipant
+  timestamp: string
+}
+
+export interface TranscriptionTranslationEvent {
+  transcriptionId: string
+  targetLanguage: string
+  translatedText: string
+  confidence?: number
+  timestamp: string
+  traceId?: string
+  translationLatencyMs?: number
+  totalPipelineLatencyMs?: number
+}
+
+export interface TranslationErrorEvent {
+  transcriptionId: string
+  error: string
+  message: string
+  traceId?: string
+  stage?: 'stt' | 'translation' | 'tts'
+  retryable?: boolean
+}
+
+export interface TTSAudioEvent {
+  transcriptionId: string
+  audioData: string
+  format: 'mp3' | 'wav'
+  language: string
+  duration: number
+  userId: string
+  username: string
+  displayName: string
+  timestamp: string
+  provider: string
+  selectedVoice?: string
+  traceId?: string
+  ttsLatencyMs?: number
+  totalPipelineLatencyMs?: number
+}
+
 export interface MeetingEvent {
   type: 'participant_joined' | 'participant_left' | 'audio_enabled' | 'video_enabled' | 'screen_share' | 'message' | 'transcription' | 'translation'
   data: any
@@ -226,6 +273,9 @@ export interface AudioTranscription {
   confidence?: number
   segments?: any[]
   translations?: TranscriptionTranslation[]
+  traceId?: string
+  sttLatencyMs?: number
+  totalPipelineLatencyMs?: number
 }
 
 export interface TranscriptionTranslation {

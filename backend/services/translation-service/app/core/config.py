@@ -15,23 +15,13 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("TRANSLATION_SERVICE_PORT", 3003))
 
     # Translation Provider Selection
-    TRANSLATION_PROVIDER: str = os.getenv("TRANSLATION_PROVIDER", "argos")  # argos, google, deepl, azure
+    TRANSLATION_PROVIDER: str = os.getenv("TRANSLATION_PROVIDER", "argos")  # argos, azure
 
     # Argos Translate (Local/Free) - currently in use
     # No configuration needed - uses installed packages
 
-    # LibreTranslate settings (Alternative local option)
+    # Local LibreTranslate-compatible endpoint setting
     LIBRETRANSLATE_URL: str = os.getenv("LIBRETRANSLATE_URL", "http://localhost:5000")
-    LIBRETRANSLATE_API_KEY: str = os.getenv("LIBRETRANSLATE_API_KEY", "")
-
-    # Cloud Provider Configuration (Commercial - for production)
-    # Google Cloud Translation
-    GOOGLE_CLOUD_PROJECT_ID: str = os.getenv("GOOGLE_CLOUD_PROJECT_ID", "")
-    GOOGLE_CLOUD_CREDENTIALS_PATH: str = os.getenv("GOOGLE_CLOUD_CREDENTIALS_PATH", "")
-
-    # DeepL API (Best quality for supported languages)
-    DEEPL_API_KEY: str = os.getenv("DEEPL_API_KEY", "")
-    DEEPL_API_FREE: bool = os.getenv("DEEPL_API_FREE", "true").lower() == "true"
 
     # Azure Translator
     AZURE_TRANSLATOR_KEY: str = os.getenv("AZURE_TRANSLATOR_KEY", "")
@@ -45,7 +35,6 @@ class Settings(BaseSettings):
 
     # Cache settings
     CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", 86400))  # 24 hours
-    CACHE_MAX_SIZE: int = int(os.getenv("CACHE_MAX_SIZE", 10000))
 
     # Translation settings
     MAX_TEXT_LENGTH: int = int(os.getenv("MAX_TEXT_LENGTH", 5000))
@@ -75,10 +64,6 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", 100))
     RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", 3600))  # 1 hour
-
-    # Monitoring
-    ENABLE_METRICS: bool = os.getenv("ENABLE_METRICS", "true").lower() == "true"
-    METRICS_PORT: int = int(os.getenv("METRICS_PORT", 8080))
 
     class Config:
         env_file = str(ENV_FILE)

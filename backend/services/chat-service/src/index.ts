@@ -6,8 +6,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 
-import { DatabaseService } from './services/database';
-import { RedisService } from './services/redis';
+import { SQLiteDatabaseService } from './services/sqlite-database';
+import { MemoryRedisService } from './services/memory-redis';
 import { MeetingController } from './controllers/meeting-controller';
 import { AuthController } from './controllers/auth-controller';
 import { SocketHandler } from './handlers/socket-handler';
@@ -26,10 +26,10 @@ const server = createServer(app);
 const corsOrigin = process.env.CORS_ORIGIN === "*"
   ? "*"
   : [
-      process.env.CORS_ORIGIN || "http://localhost:3000",
-      "http://localhost:5173",
-      "http://localhost:5174"
-    ];
+    process.env.CORS_ORIGIN || "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174"
+  ];
 
 const io = new Server(server, {
   cors: {
@@ -44,8 +44,8 @@ const PORT = process.env.PORT || 3001;
 async function startServer() {
   try {
     // Initialize services
-    await DatabaseService.getInstance().connect();
-    await RedisService.getInstance().connect();
+    await SQLiteDatabaseService.getInstance().connect();
+    await MemoryRedisService.getInstance().connect();
 
     // Middleware
     app.use(helmet());
@@ -90,8 +90,8 @@ async function startServer() {
     process.on('SIGTERM', async () => {
       console.log('🛑 SIGTERM received, shutting down gracefully');
       server.close(() => {
-        DatabaseService.getInstance().disconnect();
-        RedisService.getInstance().disconnect();
+        SQLiteDatabaseService.getInstance().disconnect();
+        MemoryRedisService.getInstance().disconnect();
         process.exit(0);
       });
     });

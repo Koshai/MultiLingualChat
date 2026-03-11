@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { LoginRequest, LoginResponse, User } from '@/types'
+import { LoginRequest, LoginResponse } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
@@ -81,26 +81,6 @@ export const authService = {
         success: false,
         error: 'Registration failed. Please try again.'
       };
-    }
-  },
-
-  async getCurrentUser(): Promise<User | null> {
-    try {
-      const response = await api.get('/me')
-      return response.data.success ? response.data.data : null
-    } catch (error) {
-      console.error('Get current user error:', error)
-      return null
-    }
-  },
-
-  async updateProfile(updates: Partial<User>): Promise<boolean> {
-    try {
-      const response = await api.patch('/me', updates)
-      return response.data.success
-    } catch (error) {
-      console.error('Update profile error:', error)
-      return false
     }
   }
 }

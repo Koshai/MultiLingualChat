@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import structlog
 import time
+from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logging import setup_logging
@@ -14,10 +15,24 @@ setup_logging()
 logger = structlog.get_logger(__name__)
 
 # Create FastAPI application
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Initialize and cleanup services using FastAPI lifespan."""
+    print(f"Starting {settings.SERVICE_NAME}")
+    print(f"Running on http://{settings.HOST}:{settings.PORT}")
+    await stt_service.initialize()
+    print(f"{settings.SERVICE_NAME} ready")
+    try:
+        yield
+    finally:
+        print(f"Shutting down {settings.SERVICE_NAME}")
+        await stt_service.cleanup()
+
 app = FastAPI(
     title="Speech-to-Text Service",
     description="Real-time speech transcription using OpenAI Whisper",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Request logging middleware
@@ -81,23 +96,6 @@ app.include_router(
     prefix="/api/v1/transcription",
     tags=["Transcription"]
 )
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup."""
-    print(f"Starting {settings.SERVICE_NAME}")
-    print(f"Running on http://{settings.HOST}:{settings.PORT}")
-    await stt_service.initialize()
-    print(f"{settings.SERVICE_NAME} ready")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown."""
-    print(f"Shutting down {settings.SERVICE_NAME}")
-    await stt_service.cleanup()
-
 
 if __name__ == "__main__":
     uvicorn.run(

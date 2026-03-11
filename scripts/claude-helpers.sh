@@ -22,6 +22,14 @@ cc-setup() {
     echo "Installing translation service dependencies..."
     cd backend/services/translation-service && pip install -r requirements.txt && cd ../../..
 
+    # STT service dependencies
+    echo "Installing STT service dependencies..."
+    cd backend/services/stt-service && pip install -r requirements.txt && cd ../../..
+
+    # TTS service dependencies
+    echo "Installing TTS service dependencies..."
+    cd backend/services/tts-service && pip install -r requirements.txt && cd ../../..
+
     echo "✅ Development environment ready!"
     echo "Use 'cc-start' to start all services"
 }
@@ -29,8 +37,7 @@ cc-setup() {
 # Start all services locally
 cc-start() {
     echo "🔄 Starting all services..."
-    echo "Please ensure PostgreSQL and Redis are running locally"
-    echo "You can install LibreTranslate separately if needed"
+    echo "Please ensure optional dependencies (Redis/PostgreSQL) are available if needed"
 
     # Start chat service in background
     echo "Starting chat service..."
@@ -44,6 +51,18 @@ cc-start() {
     TRANSLATION_PID=$!
     cd ../../..
 
+    # Start STT service in background
+    echo "Starting STT service..."
+    cd backend/services/stt-service && python main.py &
+    STT_PID=$!
+    cd ../../..
+
+    # Start TTS service in background
+    echo "Starting TTS service..."
+    cd backend/services/tts-service && python main.py &
+    TTS_PID=$!
+    cd ../../..
+
     # Start frontend
     echo "Starting frontend..."
     cd frontend && npm run dev &
@@ -53,12 +72,16 @@ cc-start() {
     # Store PIDs for later cleanup
     echo $CHAT_PID > .chat_pid
     echo $TRANSLATION_PID > .translation_pid
+    echo $STT_PID > .stt_pid
+    echo $TTS_PID > .tts_pid
     echo $FRONTEND_PID > .frontend_pid
 
     echo "🌐 Service URLs:"
     echo "Frontend: http://localhost:5173 (Vite dev server)"
-    echo "Chat API: http://localhost:3001"
-    echo "Translation API: http://localhost:3003"
+    echo "Meeting/Chat API: http://localhost:3001"
+    echo "Translation API:  http://localhost:3003"
+    echo "STT API:          http://localhost:3004"
+    echo "TTS API:          http://localhost:3005"
 }
 
 # Stop all services
@@ -75,6 +98,16 @@ cc-stop() {
         rm .translation_pid
     fi
 
+    if [ -f .stt_pid ]; then
+        kill $(cat .stt_pid) 2>/dev/null
+        rm .stt_pid
+    fi
+
+    if [ -f .tts_pid ]; then
+        kill $(cat .tts_pid) 2>/dev/null
+        rm .tts_pid
+    fi
+
     if [ -f .frontend_pid ]; then
         kill $(cat .frontend_pid) 2>/dev/null
         rm .frontend_pid
@@ -88,34 +121,33 @@ alias cc-test-chat="cd backend/services/chat-service && npm test"
 alias cc-test-frontend="cd frontend && npm test"
 
 # Development status
+_cc_check_http() {
+    local name="$1"
+    local url="$2"
+    if curl -fsS "$url" >/dev/null 2>&1; then
+        echo "✅ $name is running"
+    else
+        echo "❌ $name is not running"
+    fi
+}
+
 cc-status() {
     echo "🔍 Local Development Environment Status"
     echo "======================================="
 
-    # Check if services are running
-    if pgrep -f "npm run dev" > /dev/null; then
-        echo "✅ Frontend is running"
-    else
-        echo "❌ Frontend is not running"
-    fi
-
-    if pgrep -f "ts-node-dev" > /dev/null; then
-        echo "✅ Chat service is running"
-    else
-        echo "❌ Chat service is not running"
-    fi
-
-    if pgrep -f "uvicorn" > /dev/null; then
-        echo "✅ Translation service is running"
-    else
-        echo "❌ Translation service is not running"
-    fi
+    _cc_check_http "Frontend" "http://localhost:5173"
+    _cc_check_http "Meeting service" "http://localhost:3001/health"
+    _cc_check_http "Translation service" "http://localhost:3003/health"
+    _cc_check_http "STT service" "http://localhost:3004/health"
+    _cc_check_http "TTS service" "http://localhost:3005/health"
 
     echo ""
     echo "🌐 Service URLs:"
     echo "Frontend: http://localhost:5173"
-    echo "Chat API: http://localhost:3001"
+    echo "Meeting/Chat API: http://localhost:3001"
     echo "Translation API: http://localhost:3003"
+    echo "STT API: http://localhost:3004"
+    echo "TTS API: http://localhost:3005"
 }
 
 # Quick commit with conventional format

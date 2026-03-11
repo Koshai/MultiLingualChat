@@ -209,38 +209,17 @@ export function MeetingList() {
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* Quick Action */}
+      <div className="mb-8">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-blue-900 mb-2">Start Instant Meeting</h3>
-          <p className="text-blue-700 mb-4 text-sm">Jump into a meeting right now</p>
+          <p className="text-blue-700 mb-4 text-sm">Create and jump into a meeting right now</p>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Start Now
           </button>
-        </div>
-
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-green-900 mb-2">Schedule Meeting</h3>
-          <p className="text-green-700 mb-4 text-sm">Plan a meeting for later</p>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-          >
-            Schedule
-          </button>
-        </div>
-
-        <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-purple-900 mb-2">Join Meeting</h3>
-          <p className="text-purple-700 mb-4 text-sm">Enter meeting ID or link</p>
-          <input
-            type="text"
-            placeholder="Meeting ID"
-            className="w-full px-3 py-2 border border-purple-300 rounded-md text-sm"
-          />
         </div>
       </div>
 
@@ -318,10 +297,6 @@ export function MeetingList() {
                     >
                       {meeting.status === 'active' ? 'Join' : 'Start'}
                     </Link>
-
-                    <button className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors">
-                      ⋯
-                    </button>
                   </div>
                 </div>
               </div>

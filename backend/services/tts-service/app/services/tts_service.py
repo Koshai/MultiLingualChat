@@ -16,7 +16,6 @@ class TTSService:
 
     Provider priority:
     1. Azure TTS (primary, cloud, high quality)
-    2. Piper TTS (fallback, local) - if enabled
     """
 
     def __init__(self):
@@ -43,14 +42,6 @@ class TTSService:
                 logger.warning("Azure TTS provider failed to initialize")
         else:
             logger.warning("Azure Speech key not configured, Azure TTS disabled")
-
-        # TODO: Initialize Piper TTS fallback (if enabled)
-        # if settings.enable_piper_fallback:
-        #     piper_provider = PiperTTSProvider(model_path=settings.piper_model_path)
-        #     await piper_provider.initialize()
-        #     if piper_provider.is_ready():
-        #         self.providers.append(piper_provider)
-        #         logger.info("Piper TTS fallback provider initialized")
 
         if not self.providers:
             logger.error("No TTS providers initialized! Service will not function.")

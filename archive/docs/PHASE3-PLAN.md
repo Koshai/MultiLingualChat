@@ -1,8 +1,20 @@
 # Phase 3: TTS, Recording & Polish
 
-**Branch:** `feature/phase3-tts-and-polish`
+**Branch:** `fix/translation-video-chat-issues`
 **Timeline:** 3-4 weeks
-**Goal:** Complete the video conferencing platform with TTS audio translation, recording, and production-ready polish
+**Goal:** Continue hardening the meetings-only platform with TTS quality, recording capabilities, and production-ready polish
+
+**Status Note:** The codebase has already completed a meetings-only simplification pass. This document now acts as a forward-looking enhancement backlog.
+
+## Baseline Runtime Reference
+
+- Frontend: `5173`
+- Meeting service: `3001`
+- Translation service: `3003`
+- STT service: `3004`
+- TTS service: `3005`
+- Windows startup: `START-HERE.bat`
+- Bash startup: `source scripts/claude-helpers.sh && cc-start`
 
 ---
 
@@ -305,7 +317,7 @@ Before merging to production:
 ### Optional Features (Can defer to Phase 4)
 - Background blur/replacement
 - Virtual backgrounds
-- Breakout rooms
+- Advanced sub-meeting controls
 - Polls and reactions
 - Meeting analytics
 

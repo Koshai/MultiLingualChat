@@ -1,0 +1,63 @@
+{
+  "version": "1.0.0",
+  "description": "Canonical meetings-only Socket.IO event payloads shared between frontend and chat-service.",
+  "events": {
+    "participant_joined": {
+      "participant": "MeetingParticipant",
+      "timestamp": "ISO-8601 string"
+    },
+    "participant_left": {
+      "participant": "MeetingParticipant",
+      "timestamp": "ISO-8601 string"
+    },
+    "transcription": {
+      "id": "string",
+      "text": "string",
+      "language": "ISO-639-1 code",
+      "userId": "string",
+      "username": "string",
+      "displayName": "string",
+      "timestamp": "ISO-8601 string",
+      "segments": "array (optional)",
+      "originalText": "string",
+      "translations": "TranscriptionTranslation[]",
+      "traceId": "string (optional)",
+      "sttLatencyMs": "number (optional)",
+      "totalPipelineLatencyMs": "number (optional)"
+    },
+    "transcription_translation": {
+      "transcriptionId": "string",
+      "targetLanguage": "ISO-639-1 code",
+      "translatedText": "string",
+      "confidence": "number (optional)",
+      "timestamp": "ISO-8601 string",
+      "traceId": "string (optional)",
+      "translationLatencyMs": "number (optional)",
+      "totalPipelineLatencyMs": "number (optional)"
+    },
+    "translation_error": {
+      "transcriptionId": "string",
+      "error": "string",
+      "message": "string",
+      "traceId": "string (optional)",
+      "stage": "stt|translation|tts (optional)",
+      "retryable": "boolean (optional)"
+    },
+    "tts_audio": {
+      "transcriptionId": "string",
+      "audioData": "base64 string",
+      "format": "mp3|wav",
+      "language": "ISO-639-1 code",
+      "duration": "number",
+      "userId": "string",
+      "username": "string",
+      "displayName": "string",
+      "timestamp": "ISO-8601 string",
+      "provider": "string",
+      "selectedVoice": "string (optional)",
+      "traceId": "string (optional)",
+      "ttsLatencyMs": "number (optional)",
+      "totalPipelineLatencyMs": "number (optional)"
+    }
+  }
+}

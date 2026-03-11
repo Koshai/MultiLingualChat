@@ -24,6 +24,11 @@ if [ ! -d "backend/services/translation-service" ]; then
     exit 1
 fi
 
+if [ ! -d "backend/services/tts-service" ]; then
+    echo "Error: TTS service directory not found"
+    exit 1
+fi
+
 # Function to cleanup on exit
 cleanup() {
     echo ""
@@ -68,7 +73,14 @@ cd ../../..
 
 sleep 2
 
-echo "[4/5] Starting Frontend..."
+echo "[4/5] Starting TTS Service (Text-to-Speech)..."
+cd backend/services/tts-service && python main.py &
+TTS_PID=$!
+cd ../../..
+
+sleep 2
+
+echo "[5/5] Starting Frontend..."
 cd frontend && npm run dev &
 FRONTEND_PID=$!
 cd ..
@@ -82,7 +94,8 @@ echo "Redis (Docker):      localhost:6379"
 echo "Chat Service:        http://localhost:3001"
 echo "STT Service:         http://localhost:3004"
 echo "Translation Service: http://localhost:3003"
-echo "Frontend:            http://localhost:5174"
+echo "TTS Service:         http://localhost:3005"
+echo "Frontend:            http://localhost:5173"
 echo ""
 echo "Press Ctrl+C to stop all services..."
 

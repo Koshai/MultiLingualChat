@@ -78,6 +78,17 @@
 
 ## 🚀 Quick Start with Ngrok (RECOMMENDED)
 
+### Canonical Local Baseline (Before Ngrok)
+
+- Start services locally: `start-all.bat`
+- Confirm local app first: `http://localhost:5173`
+- Then expose frontend: `ngrok http 5173`
+- Keep backend on local ports:
+  - `3001` (meeting service)
+  - `3003` (translation)
+  - `3004` (stt)
+  - `3005` (tts)
+
 ### **Step 1: Install Ngrok**
 
 **Windows (using Chocolatey):**
@@ -95,7 +106,7 @@ choco install ngrok
 
 ```bash
 # Run this on YOUR computer
-START-HERE.bat
+start-all.bat
 ```
 
 Wait for all 5 services to start (about 20 seconds).
@@ -190,7 +201,7 @@ Focus on TTS feature - that's the star feature anyway!
 
 **1. Start your services**
 ```bash
-START-HERE.bat
+start-all.bat
 ```
 
 **2. Start Ngrok tunnel**
@@ -257,7 +268,7 @@ Email/Slack: "Join demo at https://abc123xyz.ngrok-free.app"
 **Fix:**
 ```bash
 stop-all.bat
-START-HERE.bat
+start-all.bat
 # Wait 20 seconds
 # Restart Ngrok
 ```
@@ -332,7 +343,7 @@ Deploy to **DigitalOcean** or **AWS**:
 **15 minutes before demo:**
 
 - [ ] Install Ngrok (`choco install ngrok`)
-- [ ] Run `START-HERE.bat`
+- [ ] Run `start-all.bat`
 - [ ] Verify all 5 service windows are open
 - [ ] Run `ngrok http 5173`
 - [ ] Copy HTTPS URL

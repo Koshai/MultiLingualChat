@@ -1,22 +1,11 @@
+import { TTSAudioEvent } from '@/types'
+
 /**
  * TTS Audio Player Service
  *
  * Manages playback of synthesized speech audio from the TTS service.
  * Handles base64-encoded audio, volume control, and audio queueing.
  */
-
-export interface TTSAudioEvent {
-  transcriptionId: string
-  audioData: string  // base64-encoded MP3/WAV
-  format: 'mp3' | 'wav'
-  language: string
-  duration: number
-  userId: string
-  username: string
-  displayName: string
-  timestamp: string
-  provider: string
-}
 
 export class TTSPlayer {
   private audioQueue: HTMLAudioElement[] = []

@@ -1,5 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional, List
 import structlog
 
@@ -138,63 +137,3 @@ async def get_translation_stats(
     except Exception as e:
         logger.error("❌ Failed to get translation stats", error=str(e))
         raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
-
-@router.post("/translate/message")
-async def translate_message(
-    message_id: str,
-    target_language: str,
-    background_tasks: BackgroundTasks,
-    user_id: Optional[str] = Query(None),
-    translation_service: TranslationService = Depends(get_translation_service)
-):
-    """
-    Translate a specific message for real-time chat.
-    This endpoint is optimized for WebSocket integration.
-    """
-    try:
-        # Validate target language
-        await validate_language(target_language)
-
-        # This would typically fetch the message from the chat service
-        # For now, we'll return a success response
-        # In a real implementation, this would:
-        # 1. Fetch message content from chat service
-        # 2. Translate the content
-        # 3. Send result back via WebSocket or callback
-
-        logger.info(
-            "💬 Message translation requested",
-            message_id=message_id,
-            target_language=target_language,
-            user_id=user_id
-        )
-
-        return {
-            "success": True,
-            "message": "Translation request queued",
-            "message_id": message_id,
-            "target_language": target_language
-        }
-
-    except ValueError as e:
-        logger.warning("⚠️ Message translation validation error", error=str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error("❌ Message translation failed", error=str(e))
-        raise HTTPException(status_code=500, detail="Message translation service unavailable")
-
-@router.delete("/cache")
-async def clear_translation_cache():
-    """Clear translation cache (admin endpoint)."""
-    try:
-        # This would clear the Redis cache
-        # Implementation depends on your Redis service
-        logger.info("🗑️ Translation cache clear requested")
-
-        return {
-            "success": True,
-            "message": "Cache clear requested"
-        }
-    except Exception as e:
-        logger.error("❌ Failed to clear cache", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to clear cache")

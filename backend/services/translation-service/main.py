@@ -1,13 +1,10 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import uvicorn
-import asyncio
 from contextlib import asynccontextmanager
 import structlog
 
 from app.core.config import settings
-from app.core.dependencies import get_redis_client, get_translation_client
 from app.services.translation_service import TranslationService
 from app.services.redis_service import RedisService
 from app.api.routes import translation, health

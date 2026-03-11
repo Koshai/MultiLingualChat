@@ -1,4 +1,4 @@
-# 🎥 Multilingual Video Conferencing - Demo Guide
+# 🎥 Multilingual Meetings - Demo Guide
 
 **Quick Start for Non-Technical Users**
 
@@ -24,6 +24,16 @@ Once you see all services running, open your browser and go to:
 ```
 http://localhost:5173
 ```
+
+### Canonical Startup And Ports
+
+- Start all services: `start-all.bat` (or `START-HERE.bat`)
+- Verify services: `CHECK-SERVICES.bat`
+- Frontend: `http://localhost:5173`
+- Meeting service health: `http://localhost:3001/health`
+- Translation service health: `http://localhost:3003/health`
+- STT service health: `http://localhost:3004/health`
+- TTS service health: `http://localhost:3005/health`
 
 ---
 
@@ -198,7 +208,7 @@ Close each service window individually (the 5 windows that opened).
 
 ### Services
 - **Frontend**: React + TypeScript + Vite
-- **Chat Service**: Node.js + Socket.IO (WebRTC signaling)
+- **Meeting Service**: Node.js + Socket.IO (WebRTC signaling + orchestration)
 - **STT Service**: Python + Azure Speech / OpenAI Whisper
 - **Translation Service**: Python + Azure Translator / Argos Translate
 - **TTS Service**: Python + Azure Text-to-Speech

@@ -1,11 +1,23 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { io, Socket } from 'socket.io-client'
-import { Message, Meeting, TypingUser, MeetingParticipant, MediaSettings, WebRTCConnection, AudioTranscription } from '@/types'
+import {
+  Message,
+  Meeting,
+  TypingUser,
+  MeetingParticipant,
+  MediaSettings,
+  AudioTranscription,
+  ParticipantJoinedEvent,
+  ParticipantLeftEvent,
+  TranscriptionTranslationEvent,
+  TranslationErrorEvent,
+  TTSAudioEvent
+} from '@/types'
 import { useAuthStore } from './auth-store'
 import { WebRTCService } from '@/services/webrtc-service'
 import { AudioRecorder } from '@/services/audio-recorder'
-import { TTSPlayer, TTSAudioEvent } from '@/services/tts-player'
+import { TTSPlayer } from '@/services/tts-player'
 import toast from 'react-hot-toast'
 
 interface MeetingState {
@@ -18,7 +30,6 @@ interface MeetingState {
   typingUsers: TypingUser[]
   transcriptions: AudioTranscription[]
   mediaSettings: MediaSettings
-  connections: Map<string, WebRTCConnection>
   remoteStreams: Map<string, MediaStream>
   localStream: MediaStream | null
   webrtcService: WebRTCService | null
@@ -41,7 +52,6 @@ interface MeetingActions {
   startTyping: () => void
   stopTyping: () => void
   requestTranslation: (messageId: string, targetLanguage: string) => void
-  loadMessages: (meetingId: string, limit?: number, offset?: number) => void
   setCurrentMeeting: (meeting: Meeting | null) => void
   addMessage: (message: Message) => void
   updateMessage: (messageId: string, updates: Partial<Message>) => void
@@ -80,7 +90,6 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       audioEnabled: true,
       screenSharing: false,
     },
-    connections: new Map(),
     remoteStreams: new Map(),
     localStream: null,
     webrtcService: null,
@@ -156,7 +165,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         toast.success(`Joined ${data.meeting.title}`)
       })
 
-      socket.on('meeting_left', (data) => {
+      socket.on('meeting_left', (_data) => {
         console.log('👋 Left meeting')
         set({
           currentMeeting: null,
@@ -168,7 +177,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         })
       })
 
-      socket.on('participant_joined', async (data) => {
+      socket.on('participant_joined', async (data: ParticipantJoinedEvent) => {
         console.log('👥 Participant joined:', data.participant.user?.displayName)
         const participants = get().participants
         // Check if participant already exists to avoid duplicates
@@ -196,7 +205,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         }
       })
 
-      socket.on('participant_left', (data) => {
+      socket.on('participant_left', (data: ParticipantLeftEvent) => {
         console.log('👋 Participant left:', data.participant.user?.displayName)
         const participants = get().participants.filter(p => p.id !== data.participant.id)
         set({ participants })
@@ -253,7 +262,7 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
         get().addTranscription(transcription)
       })
 
-      socket.on('transcription_translation', (data: { transcriptionId: string, targetLanguage: string, translatedText: string, confidence?: number, timestamp: string }) => {
+      socket.on('transcription_translation', (data: TranscriptionTranslationEvent) => {
         console.log('🌐 Transcription translation received:', data)
         console.log('📋 Current transcriptions count:', get().transcriptions.length)
         const { transcriptionId, targetLanguage, translatedText, confidence } = data
@@ -267,9 +276,11 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
             console.log('✅ Found matching transcription:', t.text)
             const newTranslation = {
               id: `${transcriptionId}-${targetLanguage}`,
+              transcriptionId,
               targetLanguage,
               translatedText,
-              confidence
+              confidence: confidence ?? 0,
+              createdAt: new Date().toISOString()
             }
 
             // Add or update translation in the translations array
@@ -295,9 +306,11 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
       })
 
       // Translation error events
-      socket.on('translation_error', (data: { transcriptionId: string, error: string, message: string }) => {
+      socket.on('translation_error', (data: TranslationErrorEvent) => {
         console.error('❌ Translation error received:', data)
-        toast.error(`Translation Error: ${data.error}`, {
+        const stageLabel = data.stage ? ` (${data.stage.toUpperCase()})` : ''
+        const traceSuffix = data.traceId ? ` [${data.traceId}]` : ''
+        toast.error(`Translation Error${stageLabel}: ${data.error}${traceSuffix}`, {
           duration: 5000
         })
 
@@ -479,14 +492,14 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
     startTyping: () => {
       const { socket, currentMeeting } = get()
       if (socket && socket.connected && currentMeeting) {
-        socket.emit('typing_start', { roomId: currentMeeting.id })
+        socket.emit('typing_start', { meetingId: currentMeeting.id })
       }
     },
 
     stopTyping: () => {
       const { socket, currentMeeting } = get()
       if (socket && socket.connected && currentMeeting) {
-        socket.emit('typing_stop', { roomId: currentMeeting.id })
+        socket.emit('typing_stop', { meetingId: currentMeeting.id })
       }
     },
 
@@ -498,10 +511,6 @@ export const useMeetingStore = create<MeetingState & MeetingActions>()(
           targetLanguage
         })
       }
-    },
-
-    loadMessages: async (meetingId: string, limit = 50, offset = 0) => {
-      set({ messages: [] })
     },
 
     setCurrentMeeting: (meeting: Meeting | null) => {

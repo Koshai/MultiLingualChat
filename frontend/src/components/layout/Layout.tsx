@@ -1,8 +1,8 @@
 import { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Globe, Home, MessageSquare, Users, Settings, LogOut } from 'lucide-react'
+import { Globe, Home, Video, LogOut } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
-import { useChatStore } from '@/stores/chat-store'
+import { useMeetingStore } from '@/stores/meeting-store'
 
 interface LayoutProps {
   children: ReactNode
@@ -11,12 +11,11 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { user, logout } = useAuthStore()
-  const { isConnected } = useChatStore()
+  const { isConnected } = useMeetingStore()
 
   const navigation = [
     { name: 'Home', href: '/', icon: Home },
-    { name: 'Rooms', href: '/rooms', icon: MessageSquare },
-    { name: 'People', href: '/people', icon: Users },
+    { name: 'Meetings', href: '/meetings', icon: Video },
   ]
 
   const isActive = (href: string) => {
@@ -30,16 +29,15 @@ export function Layout({ children }: LayoutProps) {
         {/* Logo */}
         <div className="flex items-center px-6 py-4 border-b border-gray-200">
           <Globe className="w-8 h-8 text-primary-600 mr-3" />
-          <h1 className="text-xl font-bold text-gray-900">Multilingual Chat</h1>
+          <h1 className="text-xl font-bold text-gray-900">Multilingual Meetings</h1>
         </div>
 
         {/* Connection status */}
         <div className="px-6 py-2 border-b border-gray-200">
           <div className="flex items-center space-x-2">
             <div
-              className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-500' : 'bg-red-500'
-              }`}
+              className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'
+                }`}
             />
             <span className="text-xs text-gray-600">
               {isConnected ? 'Connected' : 'Disconnected'}
@@ -58,10 +56,9 @@ export function Layout({ children }: LayoutProps) {
                   to={item.href}
                   className={`
                     group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
-                    ${
-                      isActive(item.href)
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ${isActive(item.href)
+                      ? 'bg-primary-100 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }
                   `}
                 >
@@ -91,14 +88,10 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </div>
 
-          <div className="flex space-x-1">
-            <button className="flex-1 flex items-center justify-center px-3 py-2 text-xs text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
-              <Settings className="w-4 h-4 mr-1" />
-              Settings
-            </button>
+          <div className="flex">
             <button
               onClick={logout}
-              className="flex-1 flex items-center justify-center px-3 py-2 text-xs text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+              className="w-full flex items-center justify-center px-3 py-2 text-xs text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
             >
               <LogOut className="w-4 h-4 mr-1" />
               Logout

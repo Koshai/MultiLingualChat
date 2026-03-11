@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { User, Message, Meeting, MeetingParticipant, AudioTranscription } from '../types';
+import { User, Message, Meeting, MeetingParticipant, AudioTranscription, ChatRoom, RoomParticipant } from '../types';
 
 export class SQLiteDatabaseService {
   private static instance: SQLiteDatabaseService;
@@ -237,7 +237,7 @@ export class SQLiteDatabaseService {
 
   async run(sql: string, params: any[] = []): Promise<any> {
     return new Promise((resolve, reject) => {
-      this.db.run(sql, params, function(err) {
+      this.db.run(sql, params, function (err) {
         if (err) reject(err);
         else resolve({ lastID: this.lastID, changes: this.changes });
       });
@@ -271,7 +271,21 @@ export class SQLiteDatabaseService {
 
   async getUserByUsernameWithPassword(username: string): Promise<(User & { passwordHash: string | null }) | null> {
     const row = await new Promise<any>((resolve, reject) => {
-      this.db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
+      this.db.get('SELECT * FROM users WHERE LOWER(username) = LOWER(?)', [username], (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+    if (!row) return null;
+    return {
+      ...this.mapUser(row),
+      passwordHash: row.password_hash
+    };
+  }
+
+  async getUserByEmailWithPassword(email: string): Promise<(User & { passwordHash: string | null }) | null> {
+    const row = await new Promise<any>((resolve, reject) => {
+      this.db.get('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email], (err, row) => {
         if (err) reject(err);
         else resolve(row);
       });

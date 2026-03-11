@@ -1,18 +1,73 @@
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { DatabaseService } from '../services/database';
-import { RedisService } from '../services/redis';
-import { AuthToken, SocketUser, JoinMeetingSocketData, SendMessageData, TranslationRequest } from '../types';
+import { SQLiteDatabaseService } from '../services/sqlite-database';
+import { MemoryRedisService } from '../services/memory-redis';
+import {
+  AuthToken,
+  SocketUser,
+  JoinMeetingSocketData,
+  SendMessageData,
+  TranslationRequest,
+  TranscriptionSocketEvent,
+  TranscriptionTranslationSocketEvent,
+  TranslationErrorSocketEvent,
+  TTSAudioSocketEvent
+} from '../types';
+import { SttClient, SttTranscriptionResult } from '../services/stt-client';
+import { TranslationClient, TranslationResult } from '../services/translation-client';
+import { TtsClient } from '../services/tts-client';
+import { normalizeLanguageCode } from '../services/language-normalizer';
+import { ExternalServiceError } from '../services/http-client';
+
+interface AudioChunkPayload {
+  meetingId: string;
+  audioData: string;
+  timestamp: number;
+  format: string;
+  language?: string | null;
+}
 
 export class SocketHandler {
   private io: Server;
-  private db: DatabaseService;
-  private redis: RedisService;
+  private db: SQLiteDatabaseService;
+  private redis: MemoryRedisService;
+  private sttClient: SttClient;
+  private translationClient: TranslationClient;
+  private ttsClient: TtsClient;
+  private audioProcessingUsers: Set<string>;
+  private pendingAudioByUser: Map<string, AudioChunkPayload>;
 
   constructor(io: Server) {
     this.io = io;
-    this.db = DatabaseService.getInstance();
-    this.redis = RedisService.getInstance();
+    this.db = SQLiteDatabaseService.getInstance();
+    this.redis = MemoryRedisService.getInstance();
+    this.sttClient = new SttClient(process.env.STT_SERVICE_URL || 'http://localhost:3004');
+    this.translationClient = new TranslationClient(process.env.TRANSLATION_SERVICE_URL || 'http://localhost:3003');
+    this.ttsClient = new TtsClient(process.env.TTS_SERVICE_URL || 'http://localhost:3005');
+    this.audioProcessingUsers = new Set();
+    this.pendingAudioByUser = new Map();
+  }
+
+  private generateTraceId(): string {
+    return `utt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  private getEnglishVoiceForSpeaker(userId: string): string {
+    const englishVoices = [
+      'en-US-JennyNeural',
+      'en-US-GuyNeural',
+      'en-US-AriaNeural',
+      'en-US-DavisNeural'
+    ];
+
+    let hash = 0;
+    for (let i = 0; i < userId.length; i += 1) {
+      hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+      hash |= 0;
+    }
+
+    const index = Math.abs(hash) % englishVoices.length;
+    return englishVoices[index];
   }
 
   initialize(): void {
@@ -47,7 +102,7 @@ export class SocketHandler {
                 user = await this.db.createUser({
                   username: decoded.username,
                   email: decoded.email,
-                  password: 'mock-password', // Won't be used
+                  passwordHash: 'mock-password', // Won't be used
                   displayName: decoded.username?.charAt(0).toUpperCase() + decoded.username?.slice(1) || 'User',
                   preferredLanguage: 'en'
                 });
@@ -141,11 +196,7 @@ export class SocketHandler {
       }
 
       // Add user to meeting in database
-      await this.db.addMeetingParticipant(meetingId, user.id, {
-        audioEnabled,
-        videoEnabled,
-        role: 'participant'
-      });
+      await this.db.addMeetingParticipant(meetingId, user.id, 'participant');
 
       // Join socket room
       socket.join(meetingId);
@@ -169,7 +220,7 @@ export class SocketHandler {
           meetingId,
           userId,
           joinedAt: dbParticipant?.joinedAt || new Date().toISOString(),
-          role: (dbParticipant?.role || 'participant') as const,
+          role: (dbParticipant?.role || 'participant') as 'host' | 'moderator' | 'participant',
           audioEnabled: dbParticipant?.audioEnabled ?? true,
           videoEnabled: dbParticipant?.videoEnabled ?? true,
           screenSharing: false,
@@ -209,14 +260,14 @@ export class SocketHandler {
       // Notify meeting about new participant
       socket.to(meetingId).emit('participant_joined', {
         participant,
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       });
 
       // Send success response to user with full participant list
       socket.emit('meeting_joined', {
         meeting: meeting,
         participants: participants,
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       });
 
       console.log(`👥 ${user.username} joined meeting ${meeting.title}`);
@@ -256,10 +307,10 @@ export class SocketHandler {
       // Notify meeting about participant leaving
       socket.to(meetingId).emit('participant_left', {
         participant,
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       });
 
-      socket.emit('meeting_left', { meetingId, timestamp: new Date() });
+      socket.emit('meeting_left', { meetingId, timestamp: new Date().toISOString() });
 
       console.log(`👋 ${user.username} left meeting ${meetingId}`);
     } catch (error) {
@@ -315,14 +366,15 @@ export class SocketHandler {
     }
   }
 
-  private async handleTypingStart(socket: Socket, data: { roomId: string }): Promise<void> {
+  private async handleTypingStart(socket: Socket, data: { meetingId?: string; roomId?: string }): Promise<void> {
     try {
       const user = (socket as any).user;
-      const { roomId } = data;
+      const meetingId = data.meetingId || data.roomId;
+      if (!meetingId) return;
 
-      await this.redis.setTyping(roomId, user.id);
+      await this.redis.setTyping(meetingId, user.id);
 
-      socket.to(roomId).emit('user_typing', {
+      socket.to(meetingId).emit('user_typing', {
         userId: user.id,
         username: user.username,
         displayName: user.displayName,
@@ -333,12 +385,13 @@ export class SocketHandler {
     }
   }
 
-  private async handleTypingStop(socket: Socket, data: { roomId: string }): Promise<void> {
+  private async handleTypingStop(socket: Socket, data: { meetingId?: string; roomId?: string }): Promise<void> {
     try {
       const user = (socket as any).user;
-      const { roomId } = data;
+      const meetingId = data.meetingId || data.roomId;
+      if (!meetingId) return;
 
-      socket.to(roomId).emit('user_typing', {
+      socket.to(meetingId).emit('user_typing', {
         userId: user.id,
         username: user.username,
         displayName: user.displayName,
@@ -627,35 +680,52 @@ export class SocketHandler {
     }
   }
 
-  private async handleAudioChunk(socket: Socket, data: { meetingId: string; audioData: string; timestamp: number; format: string; language?: string | null }): Promise<void> {
+  private async handleAudioChunk(socket: Socket, data: AudioChunkPayload): Promise<void> {
+    const user = (socket as any).user;
+    if (!user?.id) {
+      return;
+    }
+
+    // Backpressure: if one chunk is already in-flight for this speaker,
+    // keep only the latest pending chunk to avoid service overload.
+    if (this.audioProcessingUsers.has(user.id)) {
+      this.pendingAudioByUser.set(user.id, data);
+      return;
+    }
+
+    this.audioProcessingUsers.add(user.id);
+    try {
+      await this.processAudioChunk(socket, data);
+    } finally {
+      this.audioProcessingUsers.delete(user.id);
+
+      const pending = this.pendingAudioByUser.get(user.id);
+      if (pending) {
+        this.pendingAudioByUser.delete(user.id);
+        // Process the latest pending chunk next.
+        await this.handleAudioChunk(socket, pending);
+      }
+    }
+  }
+
+  private async processAudioChunk(socket: Socket, data: AudioChunkPayload): Promise<void> {
+    const traceId = this.generateTraceId();
+    const pipelineStartMs = Date.now();
     try {
       const user = (socket as any).user;
       const { meetingId, audioData, timestamp, format, language } = data;
 
-      console.log(`Audio chunk received from ${user.username} for meeting ${meetingId} (lang: ${language || 'auto-detect'})`);
+      console.log(`[${traceId}] Audio chunk received from ${user.username} for meeting ${meetingId} (lang: ${language || 'auto-detect'})`);
 
-      // Forward audio to STT service
-      const sttUrl = process.env.STT_SERVICE_URL || 'http://localhost:3004';
-
-      const response = await fetch(`${sttUrl}/api/v1/transcription/transcribe`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          audio_data: audioData,
-          language: language || null, // null = auto-detect
-          meeting_id: meetingId,
-          user_id: user.id
-        })
+      const sttStartMs = Date.now();
+      const transcription = await this.sttClient.transcribe({
+        audio_data: audioData,
+        language: language || null,
+        meeting_id: meetingId,
+        user_id: user.id
       });
-
-      if (!response.ok) {
-        console.error(`STT service error: ${response.status}`);
-        return;
-      }
-
-      const transcription = await response.json();
+      const sttLatencyMs = Date.now() - sttStartMs;
+      const normalizedSourceLanguage = normalizeLanguageCode(transcription.language);
 
       // Skip empty transcriptions
       if (!transcription.text || transcription.text.trim() === '') {
@@ -663,138 +733,157 @@ export class SocketHandler {
         return;
       }
 
-      console.log(`Transcription received: "${transcription.text}" (${transcription.language})`);
+      console.log(`[${traceId}] Transcription received in ${sttLatencyMs}ms: "${transcription.text}" (${transcription.language})`);
 
       // OPTIMIZATION: Broadcast transcription IMMEDIATELY (don't wait for translation)
-      this.io.to(meetingId).emit('transcription', {
+      const transcriptionEvent: TranscriptionSocketEvent = {
         id: transcription.id,
         text: transcription.text,
-        language: transcription.language,
+        language: normalizedSourceLanguage,
         userId: user.id,
         username: user.username,
         displayName: user.displayName,
         timestamp: new Date().toISOString(),
         segments: transcription.segments,
         originalText: transcription.text,
-        translations: [] // Empty initially, will be populated async
-      });
+        translations: [],
+        traceId,
+        sttLatencyMs,
+        totalPipelineLatencyMs: Date.now() - pipelineStartMs
+      };
+      this.io.to(meetingId).emit('transcription', transcriptionEvent);
 
       // Save transcription to database (async, don't wait)
       this.db.createTranscription({
         meetingId,
         userId: user.id,
         text: transcription.text,
-        language: transcription.language,
-        timestamp: new Date()
+        language: normalizedSourceLanguage,
+        timestamp: new Date(),
+        confidence: transcription.confidence ?? 0
       }).catch(err => console.error('Error saving transcription:', err));
 
       // Translate asynchronously in background (don't await)
-      console.log(`🔍 Checking if translation needed: language="${transcription.language}"`);
-      if (transcription.language !== 'en' && transcription.language !== 'english') {
-        console.log(`✅ Translation needed: ${transcription.language} → en`);
-        this.translateAndBroadcast(transcription, meetingId, user).catch(err => {
+      console.log(`🔍 Checking if translation needed: language="${normalizedSourceLanguage}"`);
+      if (normalizedSourceLanguage !== 'en') {
+        console.log(`✅ Translation needed: ${normalizedSourceLanguage} → en`);
+        const normalizedTranscription: SttTranscriptionResult = {
+          ...transcription,
+          language: normalizedSourceLanguage
+        };
+        this.translateAndBroadcast(
+          normalizedTranscription,
+          meetingId,
+          user,
+          traceId,
+          pipelineStartMs
+        ).catch(err => {
           console.error('❌ Translation error:', err);
-          console.error('Translation error details:', err.message);
+          if (err instanceof Error) {
+            console.error('Translation error details:', err.message);
+          }
         });
       } else {
-        console.log(`⏭️  Skipping translation: language is already English (${transcription.language})`);
+        console.log(`⏭️  Skipping translation: language is already English (${normalizedSourceLanguage})`);
       }
 
     } catch (error) {
-      console.error('Error handling audio chunk:', error);
+      console.error(`[${traceId}] Error handling audio chunk:`, error);
+      const user = (socket as any).user;
+      const { meetingId } = data;
+      const message: TranslationErrorSocketEvent = {
+        transcriptionId: `transcription-${traceId}`,
+        error: error instanceof Error ? error.message : 'Speech processing failed',
+        message: 'Could not transcribe audio chunk',
+        traceId,
+        stage: 'stt',
+        retryable: true
+      };
+      this.io.to(meetingId).emit('translation_error', message);
+      socket.emit('meeting_error', {
+        message: 'Speech processing failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        traceId,
+        userId: user?.id
+      });
     }
   }
 
-  private async translateAndBroadcast(transcription: any, meetingId: string, user: any): Promise<void> {
+  private async translateAndBroadcast(
+    transcription: SttTranscriptionResult,
+    meetingId: string,
+    user: any,
+    traceId: string,
+    pipelineStartMs: number
+  ): Promise<void> {
     try {
-      const translationUrl = process.env.TRANSLATION_SERVICE_URL || 'http://localhost:3003';
-      console.log(`🌐 Calling translation service at: ${translationUrl}/api/v1/translate`);
+      console.log(`[${traceId}] Calling translation service`);
       console.log(`📝 Translation request:`, {
         text: transcription.text.substring(0, 50) + '...',
         source_language: transcription.language,
         target_language: 'en'
       });
 
-      const translationResponse = await fetch(`${translationUrl}/api/v1/translate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: transcription.text,
-          source_language: transcription.language,
-          target_language: 'en'
-        }),
-        // Add timeout to detect if service is unresponsive
-        signal: AbortSignal.timeout(10000) // 10 second timeout
+      const translationStartMs = Date.now();
+      const translationData: TranslationResult = await this.translationClient.translate({
+        text: transcription.text,
+        source_language: transcription.language,
+        target_language: 'en'
       });
+      const translationLatencyMs = Date.now() - translationStartMs;
 
-      console.log(`📡 Translation service response status: ${translationResponse.status}`);
+      console.log(`[${traceId}] Translation completed in ${translationLatencyMs}ms: ${transcription.language} → en`);
 
-      if (translationResponse.ok) {
-        const translationData = await translationResponse.json();
+      const translationEvent: TranscriptionTranslationSocketEvent = {
+        transcriptionId: transcription.id,
+        targetLanguage: 'en',
+        translatedText: translationData.translated_text,
+        confidence: translationData.confidence,
+        timestamp: new Date().toISOString(),
+        traceId,
+        translationLatencyMs,
+        totalPipelineLatencyMs: Date.now() - pipelineStartMs
+      };
+      this.io.to(meetingId).emit('transcription_translation', translationEvent);
 
-        console.log(`✅ Translation completed: ${transcription.language} → en: "${translationData.translated_text}"`);
+      console.log(`📤 Broadcasted translation to meeting ${meetingId}`);
 
-        // Broadcast translation update
-        this.io.to(meetingId).emit('transcription_translation', {
-          transcriptionId: transcription.id,
-          targetLanguage: 'en',
-          translatedText: translationData.translated_text,
-          confidence: translationData.confidence,
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`📤 Broadcasted translation to meeting ${meetingId}`);
-
-        // Synthesize translated text to speech (async, don't block)
-        this.synthesizeAndBroadcast(
-          translationData.translated_text,
-          'en',
-          transcription.id,
-          meetingId,
-          user
-        ).catch(err => {
+      this.synthesizeAndBroadcast(
+        translationData.translated_text,
+        'en',
+        transcription.id,
+        meetingId,
+        user,
+        traceId,
+        pipelineStartMs
+      ).catch(err => {
+        if (err instanceof Error) {
           console.error('TTS synthesis error:', err.message);
-          // Continue even if TTS fails - translation is still displayed
-        });
-      } else {
-        const errorText = await translationResponse.text();
-        console.error(`❌ Translation service returned error ${translationResponse.status}: ${errorText}`);
-
-        // Send error notification to frontend
-        this.io.to(meetingId).emit('translation_error', {
-          transcriptionId: transcription.id,
-          error: `Translation service error: ${translationResponse.status}`,
-          message: 'Translation service is having issues. Please check the service logs.'
-        });
-      }
+        } else {
+          console.error('TTS synthesis error:', err);
+        }
+      });
     } catch (error) {
       console.error('❌ Error in translateAndBroadcast:', error);
-      if (error instanceof Error) {
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
 
-      // Check error type and send appropriate notification
       let errorMessage = 'Translation failed';
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.error('🚨 TRANSLATION SERVICE APPEARS TO BE DOWN OR UNREACHABLE!');
-        console.error('   Make sure the translation service is running on port 3003');
-        console.error('   Check: http://localhost:3003/health');
-        errorMessage = 'Translation service is not running. Please start all services with START-HERE.bat';
-      } else if (error instanceof Error && error.name === 'AbortError') {
-        console.error('⏱️  Translation service timeout - service may be overloaded or stuck');
-        errorMessage = 'Translation service timeout - service may be slow or unresponsive';
+      if (error instanceof ExternalServiceError) {
+        console.error(`🚨 ${error.service.toUpperCase()} ERROR: ${error.message}`);
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
       }
 
       // Send error notification to frontend
-      this.io.to(meetingId).emit('translation_error', {
+      const translationErrorEvent: TranslationErrorSocketEvent = {
         transcriptionId: transcription.id,
         error: errorMessage,
-        message: 'Please check that all services are running'
-      });
+        message: 'Please check that all services are running',
+        traceId,
+        stage: 'translation',
+        retryable: error instanceof ExternalServiceError ? error.retryable : true
+      };
+      this.io.to(meetingId).emit('translation_error', translationErrorEvent);
 
       // Don't throw - allow transcription to continue without translation
       console.log('⏭️  Continuing without translation for this transcription');
@@ -806,64 +895,66 @@ export class SocketHandler {
     language: string,
     transcriptionId: string,
     meetingId: string,
-    user: any
+    user: any,
+    traceId: string,
+    pipelineStartMs: number
   ): Promise<void> {
     try {
-      const ttsUrl = process.env.TTS_SERVICE_URL || 'http://localhost:3005';
-      console.log(`🎤 Calling TTS service at: ${ttsUrl}/api/v1/synthesis/synthesize`);
+      console.log(`[${traceId}] Calling TTS service`);
       console.log(`🗣️  TTS request:`, {
         text: text.substring(0, 50) + '...',
         language,
         transcriptionId
       });
 
-      const ttsResponse = await fetch(`${ttsUrl}/api/v1/synthesis/synthesize`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text,
-          language,
-          transcription_id: transcriptionId,
-          meeting_id: meetingId,
-          user_id: user.id,
-          speed: 1.0,
-          pitch: 1.0
-        })
+      const ttsStartMs = Date.now();
+      const selectedVoice = this.getEnglishVoiceForSpeaker(user.id);
+      const ttsData = await this.ttsClient.synthesize({
+        text,
+        language,
+        voice: selectedVoice,
+        transcription_id: transcriptionId,
+        meeting_id: meetingId,
+        user_id: user.id,
+        speed: 1.0,
+        pitch: 1.0
       });
+      const ttsLatencyMs = Date.now() - ttsStartMs;
 
-      console.log(`📡 TTS service response status: ${ttsResponse.status}`);
+      console.log(`[${traceId}] TTS synthesis completed in ${ttsLatencyMs}ms: ${ttsData.duration_seconds}s audio (${ttsData.provider})`);
 
-      if (ttsResponse.ok) {
-        const ttsData = await ttsResponse.json();
+      const ttsEvent: TTSAudioSocketEvent = {
+        transcriptionId,
+        audioData: ttsData.audio_data,
+        format: ttsData.format,
+        language: ttsData.language,
+        duration: ttsData.duration_seconds,
+        userId: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        timestamp: new Date().toISOString(),
+        provider: ttsData.provider,
+        selectedVoice,
+        traceId,
+        ttsLatencyMs,
+        totalPipelineLatencyMs: Date.now() - pipelineStartMs
+      };
+      this.io.to(meetingId).emit('tts_audio', ttsEvent);
 
-        console.log(`✅ TTS synthesis completed: ${ttsData.duration_seconds}s audio (${ttsData.provider})`);
-
-        // Broadcast TTS audio to all participants
-        this.io.to(meetingId).emit('tts_audio', {
-          transcriptionId,
-          audioData: ttsData.audio_data,
-          format: ttsData.format,
-          language: ttsData.language,
-          duration: ttsData.duration_seconds,
-          userId: user.id,
-          username: user.username,
-          displayName: user.displayName,
-          timestamp: new Date().toISOString(),
-          provider: ttsData.provider
-        });
-
-        console.log(`📤 Broadcasted TTS audio to meeting ${meetingId}`);
-      } else {
-        const errorText = await ttsResponse.text();
-        console.error(`TTS service returned error ${ttsResponse.status}: ${errorText}`);
-      }
+      console.log(`📤 Broadcasted TTS audio to meeting ${meetingId}`);
     } catch (error) {
-      console.error('Error in synthesizeAndBroadcast:', error);
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.error('🚨 TTS SERVICE APPEARS TO BE DOWN OR UNREACHABLE!');
-        console.error('   Make sure the TTS service is running on port 3005');
+      console.error(`[${traceId}] Error in synthesizeAndBroadcast:`, error);
+      const errorEvent: TranslationErrorSocketEvent = {
+        transcriptionId,
+        error: error instanceof Error ? error.message : 'Speech synthesis failed',
+        message: 'Translated audio is unavailable for this utterance',
+        traceId,
+        stage: 'tts',
+        retryable: error instanceof ExternalServiceError ? error.retryable : true
+      };
+      this.io.to(meetingId).emit('translation_error', errorEvent);
+      if (error instanceof ExternalServiceError) {
+        console.error(`🚨 ${error.service.toUpperCase()} ERROR: ${error.message}`);
       }
       throw error;
     }

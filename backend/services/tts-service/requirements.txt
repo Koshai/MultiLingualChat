@@ -8,9 +8,3 @@ python-multipart==0.0.6
 
 # Azure Text-to-Speech
 azure-cognitiveservices-speech==1.38.0
-
-# Audio processing
-pydub==0.25.1
-
-# Optional: Piper TTS for local fallback
-# piper-tts==1.2.0

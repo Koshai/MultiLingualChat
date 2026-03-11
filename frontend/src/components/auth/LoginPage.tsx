@@ -69,7 +69,7 @@ export function LoginPage() {
         <div className="flex flex-col justify-center px-12">
           <div className="flex items-center space-x-3 mb-8">
             <Globe className="w-12 h-12" />
-            <h1 className="text-4xl font-bold">Multilingual Chat</h1>
+            <h1 className="text-4xl font-bold">Multilingual Meetings</h1>
           </div>
 
           <p className="text-xl text-primary-100 mb-12">
@@ -81,7 +81,7 @@ export function LoginPage() {
               <MessageCircle className="w-8 h-8 text-primary-200" />
               <div>
                 <h3 className="font-semibold text-lg">Real-time Translation</h3>
-                <p className="text-primary-200">Chat in your native language, understood by everyone</p>
+                <p className="text-primary-200">Speak in your language and be understood in real-time</p>
               </div>
             </div>
 
@@ -89,7 +89,7 @@ export function LoginPage() {
               <Users className="w-8 h-8 text-primary-200" />
               <div>
                 <h3 className="font-semibold text-lg">Global Communities</h3>
-                <p className="text-primary-200">Join rooms with people from different countries</p>
+                <p className="text-primary-200">Join live meetings with people from different countries</p>
               </div>
             </div>
 
@@ -110,7 +110,7 @@ export function LoginPage() {
           <div className="text-center mb-8 lg:hidden">
             <div className="flex items-center justify-center space-x-3 mb-4">
               <Globe className="w-8 h-8 text-primary-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Multilingual Chat</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Multilingual Meetings</h1>
             </div>
             <p className="text-gray-600">Connect across languages</p>
           </div>
@@ -132,14 +132,14 @@ export function LoginPage() {
               <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                 <div>
                   <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                    Username
+                    Username or Email
                   </label>
                   <input
                     {...loginForm.register('username', { required: 'Username is required' })}
                     type="text"
                     id="username"
                     className="input w-full"
-                    placeholder="Enter your username"
+                    placeholder="Enter your username or email"
                     disabled={isLoading}
                   />
                   {loginForm.formState.errors.username && (

@@ -56,6 +56,8 @@ export interface SendMessageData {
 
 export interface JoinMeetingSocketData {
   meetingId: string;
+  audioEnabled?: boolean;
+  videoEnabled?: boolean;
 }
 
 export interface TranslationRequest {
@@ -90,6 +92,7 @@ export interface MeetingParticipant {
   audioEnabled: boolean;
   videoEnabled: boolean;
   screenSharing: boolean;
+  user?: User;
 }
 
 export interface AudioTranscription {
@@ -121,6 +124,25 @@ export interface CreateMeetingData {
   language?: string;
 }
 
+export interface ChatRoom {
+  id: string;
+  name: string;
+  description?: string;
+  isPublic: boolean;
+  maxParticipants: number;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RoomParticipant {
+  id: string;
+  roomId: string;
+  userId: string;
+  joinedAt: Date;
+  role: 'member' | 'moderator' | 'admin';
+}
+
 export interface SendAudioData {
   meetingId: string;
   audioData: string; // Base64 encoded audio
@@ -149,4 +171,67 @@ export interface MeetingEvent {
   timestamp: Date;
   meetingId: string;
   userId?: string;
+}
+
+export interface ParticipantJoinedEvent {
+  participant: MeetingParticipant;
+  timestamp: Date | string;
+}
+
+export interface ParticipantLeftEvent {
+  participant: MeetingParticipant;
+  timestamp: Date | string;
+}
+
+export interface TranscriptionSocketEvent {
+  id: string;
+  text: string;
+  language: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  timestamp: string;
+  segments?: unknown[];
+  originalText: string;
+  translations: TranscriptionTranslation[];
+  traceId?: string;
+  sttLatencyMs?: number;
+  totalPipelineLatencyMs?: number;
+}
+
+export interface TranscriptionTranslationSocketEvent {
+  transcriptionId: string;
+  targetLanguage: string;
+  translatedText: string;
+  confidence?: number;
+  timestamp: string;
+  traceId?: string;
+  translationLatencyMs?: number;
+  totalPipelineLatencyMs?: number;
+}
+
+export interface TranslationErrorSocketEvent {
+  transcriptionId: string;
+  error: string;
+  message: string;
+  traceId?: string;
+  stage?: 'stt' | 'translation' | 'tts';
+  retryable?: boolean;
+}
+
+export interface TTSAudioSocketEvent {
+  transcriptionId: string;
+  audioData: string;
+  format: string;
+  language: string;
+  duration: number;
+  userId: string;
+  username: string;
+  displayName: string;
+  timestamp: string;
+  provider: string;
+  selectedVoice?: string;
+  traceId?: string;
+  ttsLatencyMs?: number;
+  totalPipelineLatencyMs?: number;
 }
